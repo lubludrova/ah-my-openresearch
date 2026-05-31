@@ -1,4 +1,4 @@
-// Zod schema for ~/.config/opencode/omo-research.json (STUB)
+// Zod schema for ~/.config/opencode/amore.json (STUB)
 // Source of truth for what users can configure.
 // Run scripts/generate-schema.ts to produce omo-research.schema.json for IDE autocomplete.
 
@@ -13,7 +13,7 @@ export const PersonaConfigSchema = z.object({
   tier: TierSchema.optional(),
 });
 
-export const OmoResearchConfigSchema = z.object({
+export const AmoreConfigSchema = z.object({
   vault_path: z.string(),
   personas: z.record(z.string(), PersonaConfigSchema),
   mcps: z.array(z.string()).default([]),
@@ -21,4 +21,4 @@ export const OmoResearchConfigSchema = z.object({
   domain: z.string().optional(),
 });
 
-export type OmoResearchConfig = z.infer<typeof OmoResearchConfigSchema>;
+export type AmoreConfig = z.infer<typeof AmoreConfigSchema>;

@@ -1,5 +1,5 @@
 {
-  "name": "omo-research",
+  "name": "ah-my-openresearch",
   "version": "0.0.0",
   "description": "Research analogue of oh-my-openagent: research personas + skills + living Obsidian wiki for OpenCode/Codex/Claude Code.",
   "private": true,
@@ -7,12 +7,12 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {
-    "omo-research": "./dist/cli/index.js"
+    "amore": "./dist/cli/index.js"
   },
   "files": [
     "dist",
     "src/skills",
-    "omo-research.schema.json",
+    "amore.schema.json",
     "README.md",
     "LICENSE"
   ],
@@ -36,6 +36,8 @@
   "keywords": [
     "opencode",
     "opencode-plugin",
+    "amore",
+    "oh-my-openresearch",
     "research",
     "agents",
     "obsidian",

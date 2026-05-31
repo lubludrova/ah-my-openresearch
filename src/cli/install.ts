@@ -1,7 +1,7 @@
-// omo-research `install` command (STUB)
+// amore `install` command (STUB)
 //
 // Will:
-//   1. Create ~/.config/opencode/omo-research.json from defaults.
+//   1. Create ~/.config/opencode/amore.json from defaults.
 //   2. Scaffold vault layout under <vault_path>: claims/, _drafts/, papers/, edges.jsonl.
 //   3. Register MCPs (obsidian-mcp-server, zotero-mcp, basic-memory) in ~/.config/opencode/mcp.json.
 //

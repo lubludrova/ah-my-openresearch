@@ -1,5 +1,7 @@
 # Agent guidelines
 
+Project: `ah-my-openresearch` (alias `amore`).
+
 Guidelines for AI agents (Claude Code / Codex / OpenCode) working on this repository.
 
 ## Stack

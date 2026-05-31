@@ -43,9 +43,9 @@ Files to fill:
 - `src/config/constants.ts` — concrete defaults for new fields
 - `src/utils/paths.ts` (NEW) — path resolution helpers
 - `src/utils/logger.ts` (NEW) — logger
-- `scripts/generate-schema.ts` (NEW) — Zod → `omo-research.schema.json`
+- `scripts/generate-schema.ts` (NEW) — Zod → `ah-my-openresearch.schema.json`
 
-Verifiable: `bun run scripts/generate-schema.ts` produces a valid `omo-research.schema.json`.
+Verifiable: `bun run scripts/generate-schema.ts` produces a valid `ah-my-openresearch.schema.json`.
 
 ---
 
@@ -90,7 +90,7 @@ Verifiable: `bun run build` produces `dist/`; OpenCode loads the plugin without 
 - `src/cli/install.ts` — implement the function: create user config from defaults, scaffold vault (depends on Phase 6), register MCPs in `~/.config/opencode/mcp.json`.
 - `src/cli/doctor.ts` (NEW) — checks: vault dirs exist, MCPs reachable, schema valid.
 
-Verifiable: `bunx omo-research install` on a clean machine produces a user config + vault scaffold.
+Verifiable: `bunx ah-my-openresearch install` (or `amore install` once installed) on a clean machine produces a user config + vault scaffold.
 
 ---
 

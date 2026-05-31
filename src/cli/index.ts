@@ -1,4 +1,4 @@
 #!/usr/bin/env node
-// omo-research CLI entry (STUB)
+// amore CLI entry (STUB) — package: ah-my-openresearch
 // TODO: implement install / doctor / skills subcommands.
-console.log('omo-research CLI — not yet implemented. See README.md and design/Product Design.md §10.');
+console.log('amore CLI (ah-my-openresearch) — not yet implemented. See README.md and design/Product Design.md §10.');

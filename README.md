@@ -1,6 +1,8 @@
-# omo-research
+# ah-my-openresearch  ·  `amore`
 
-> Research analogue of oh-my-openagent: research personas + skills + living Obsidian wiki for OpenCode/Codex/Claude Code.
+> Research analogue of `oh-my-openagent`: research personas + skills + per-project lab + outside literature wiki for OpenCode/Codex/Claude Code.
+>
+> The name plays on `oh-my-openagent`: *ah-my-o...* → **amore** (Italian for *love*). Research with care.
 
 **Status:** scaffold, pre-MVP. `src/**` is STUBs only — no business logic written yet. See [`ROADMAP.md`](ROADMAP.md) for the phase plan.
 
@@ -14,7 +16,7 @@ Not buildable yet — see [`ROADMAP.md`](ROADMAP.md) phases 0–10.
 # After Phase 0 of the cascade:
 bun install
 bun run build
-bunx omo-research install
+bunx ah-my-openresearch install  # or after install: `amore install`
 ```
 
 ## What this is
@@ -31,7 +33,7 @@ A focused OpenCode plugin that ships:
 ## Project layout
 
 ```text
-omo-research/
+amore/
 ├── design/                # canonical product design (local-only, gitignored)
 │   ├── Product Design.md
 │   └── Skill Catalog.md

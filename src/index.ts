@@ -1,4 +1,4 @@
-// omo-research — OpenCode plugin entry (STUB)
+// ah-my-openresearch (amore) — OpenCode plugin entry (STUB)
 //
 // Wires personas + MCPs + hooks once config-schema and factories are filled.
 // Today: returns plugin metadata only; nothing registered yet.
@@ -9,10 +9,10 @@
 //   3. Fill src/mcp/*.ts
 //   4. Wire everything here
 
-export const omoResearchPlugin = {
-  name: 'omo-research',
+export const amorePlugin = {
+  name: 'ah-my-openresearch',
   version: '0.0.0',
   description: 'Research personas + skills + Obsidian wiki for OpenCode/Codex.',
 };
 
-export default omoResearchPlugin;
+export default amorePlugin;

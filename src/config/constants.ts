@@ -1,6 +1,6 @@
-// Defaults and constants for omo-research.
+// Defaults and constants for amore (ah-my-openresearch).
 
-export const DEFAULT_CONFIG_PATH = '~/.config/opencode/omo-research.json';
+export const DEFAULT_CONFIG_PATH = '~/.config/opencode/amore.json';
 
 // Lab: per-project research record (sits next to project code).
 export const DEFAULT_LAB_DIR = './lab';

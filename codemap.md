@@ -1,6 +1,6 @@
 # codemap
 
-Architecture map for `omo-research`. Pattern: focused OpenCode plugin modeled on `alvinunreal/oh-my-opencode-slim`, with our wiki-contract on top.
+Architecture map for `ah-my-openresearch` (alias `amore`). Pattern: focused OpenCode plugin modeled on `alvinunreal/oh-my-opencode-slim`, with our wiki-contract on top.
 
 > Phase-by-phase build plan is in [`ROADMAP.md`](ROADMAP.md). This file is architecture only (what depends on what); ROADMAP is the build sequence.
 
@@ -18,7 +18,7 @@ src/agents/*.ts   src/mcp/*.ts   scripts/        constants
 (6 factories)     (3 MCPs)       generate-schema
     │              │                  │
     └──────┬───────┘                  ▼
-           ▼                  omo-research.schema.json (generated)
+           ▼                  ah-my-openresearch.schema.json (generated)
     src/index.ts                       │
     (plugin entry)                     │
            │                           │
@@ -54,7 +54,7 @@ src/agents/*.ts   src/mcp/*.ts   scripts/        constants
 | `src/cli/index.ts` | CLI entry (STUB) |
 | `src/cli/install.ts` | Install command (STUB — blocked on D11 + §7 layout) |
 | `src/config/schema.ts` | Zod schema for user config (STUB — needs full fields) |
-| `src/config/constants.ts` | Defaults: `~/.config/opencode/omo-research.json`, `~/RL-Wiki`, MVP persona list |
+| `src/config/constants.ts` | Defaults: `~/.config/opencode/ah-my-openresearch.json`, `~/RL-Wiki`, MVP persona list |
 | `src/mcp/obsidian.ts` | Registration for `cyanheads/obsidian-mcp-server` (STUB) |
 | `src/mcp/zotero.ts` | Registration for `54yyyu/zotero-mcp` (STUB) |
 | `src/mcp/basic-memory.ts` | Registration for `basicmachines-co/basic-memory` (STUB) |
@@ -79,7 +79,7 @@ src/agents/*.ts   src/mcp/*.ts   scripts/        constants
 
 ## Mapping to slim's structure
 
-| omo-research | slim equivalent | Notes |
+| ah-my-openresearch | slim equivalent | Notes |
 |---|---|---|
 | `src/agents/` | `src/agents/` | Same pattern. Slim has 10 agents (orchestrator/librarian/oracle/explorer/fixer/designer/observer/council/councillor/custom); we have 6 (no oracle/explorer/fixer/designer/observer; we add prospector/writer). |
 | `src/skills/` | `src/skills/` | Same shape (dir per skill with SKILL.md). |
