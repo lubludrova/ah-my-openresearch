@@ -5,9 +5,9 @@
 //   2. Scaffold vault layout under <vault_path>: claims/, _drafts/, papers/, edges.jsonl.
 //   3. Register MCPs (obsidian-mcp-server, zotero-mcp, basic-memory) in ~/.config/opencode/mcp.json.
 //
-// Blocking decision before implementing:
-//   - Contradiction threshold (last remaining Phase-1 blocker)
-// D7/D10/D11/D12 closed in Product Design §7.
+// Phase 1 blockers all resolved (D7/D10/D11/D12/D13).
+// Ready to implement: create user config from src/config/schema.ts defaults,
+// scaffold <project>/lab/ via src/lab/layout.ts, register MCPs.
 
 export async function install(): Promise<void> {
   throw new Error('install command not yet implemented');

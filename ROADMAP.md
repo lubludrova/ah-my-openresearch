@@ -8,15 +8,17 @@ Phase-by-phase build plan. Every step references real files in this repo.
 
 ---
 
-## Blocking decisions (Phase 1 prerequisite)
+## Phase 1 prerequisites (resolved)
 
 | Decision | Status | Notes |
 |---|---|---|
 | ✅ D7 Lab + literature stack | Done (3bab394) | Per-project `<project>/lab/`; literature outside, read-only. |
-| ✅ D10 Auto-flag behavior | Done | Flags go into draft frontmatter; never block. |
+| ✅ D10 Auto-flag behavior | Done (66e39fb) | Flags go into draft frontmatter; never block. |
 | ✅ D11 Inter-persona file conventions | Done (3bab394) | `lab/{drafts,critique,canon}/` + `log.md`. |
-| ✅ D12 Identifier rule | Done | Slug from title (drop stopwords, ≤60 chars, collision suffix). See Product Design §7. |
-| 🟥 **Contradiction threshold** | Open | Numeric cosine cutoff for `potential_contradicts`. Last Phase-1 blocker. |
+| ✅ D12 Identifier rule | Done (66e39fb) | Slug from title (drop stopwords, ≤60 chars, collision suffix). See Product Design §7. |
+| ✅ D13 Contradiction threshold | Done | Cosine 0.80; single threshold; pool = canon `{supported, partial}`; embedding `BAAI/bge-small-en-v1.5`; index `title + body` minus code blocks. |
+
+**Phase 1 is now unblocked.** All 5 prerequisites resolved.
 
 ---
 
@@ -34,7 +36,7 @@ Verifiable: `find src -type f` matches `codemap.md` layout.
 
 ---
 
-## Phase 1 — Config + Schema 🟥 BLOCKED on decisions above
+## Phase 1 — Config + Schema 🟢 READY
 
 Files to fill:
 - `src/config/schema.ts` — extend Zod with `lab.dir`, `literature_wiki.path`, `contradiction.threshold`, real per-persona defaults

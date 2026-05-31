@@ -21,6 +21,12 @@ export const CLAIM_ID_STOPWORDS = [
 ] as const;
 export const CLAIM_ID_REGEX = /^(claim|exp|idea):[a-z0-9][a-z0-9-]*[a-z0-9](?:-\d{4}-\d{2}-\d{2})?$/;
 
+// Contradiction-check (D8 buildable, see Product Design §7 Contradiction flag behavior).
+export const CONTRADICTION_THRESHOLD_DEFAULT = 0.80;
+export const CONTRADICTION_EMBEDDING_MODEL = 'BAAI/bge-small-en-v1.5';
+// Candidate pool for similarity comparison: canon claims with these statuses.
+export const CONTRADICTION_CANDIDATE_STATUSES = ['supported', 'partial'] as const;
+
 // All designed personas (full cycle).
 export const ALL_PERSONAS = [
   'orchestrator',

@@ -10,7 +10,7 @@ Architecture map for `omo-research`. Pattern: focused OpenCode plugin modeled on
 package.json / tsconfig / biome              ← Phase 0 (scaffold; done)
     │
     ▼
-src/config/schema.ts (Zod)                   ← Phase 1 (blocked only on contradiction threshold)
+src/config/schema.ts (Zod)                   ← Phase 1 (READY — all blockers resolved)
     │
     ├──────────────┬──────────────────┬──────────────┐
     ▼              ▼                  ▼              ▼
