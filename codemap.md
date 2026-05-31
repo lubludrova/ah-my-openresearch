@@ -10,7 +10,7 @@ Architecture map for `omo-research`. Pattern: focused OpenCode plugin modeled on
 package.json / tsconfig / biome              ← Phase 0 (scaffold; done)
     │
     ▼
-src/config/schema.ts (Zod)                   ← Phase 1 (blocked on D11, §7 layout, claim ID rule, threshold)
+src/config/schema.ts (Zod)                   ← Phase 1 (blocked only on contradiction threshold)
     │
     ├──────────────┬──────────────────┬──────────────┐
     ▼              ▼                  ▼              ▼
@@ -24,14 +24,14 @@ src/agents/*.ts   src/mcp/*.ts   scripts/        constants
            │                           │
            ▼                           │
     src/cli/install.ts ←───────────────┘
-    (scaffolds vault, registers MCPs, writes user config)
+    (scaffolds lab/, registers MCPs, writes user config)
            │
            ├──────────────────┐
            ▼                  ▼
-    src/vault/         src/hooks/pre-write-drafts-only/
-    (layout, edges,    (enforces _drafts/ only writes)
-     claim-schema
-     validators)
+    src/lab/           src/hooks/pre-write-drafts-only/
+    (lab layout,       (enforces lab/drafts/ only writes)
+     edges, claim
+     schema, validators)
            │
            ▼
     src/skills/wiki-ingest/SKILL.md
@@ -63,7 +63,7 @@ src/agents/*.ts   src/mcp/*.ts   scripts/        constants
 | `src/skills/wiki-ingest/SKILL.md` | Write drafts to vault via obsidian-mcp-server (STUB) |
 | `src/skills/contradiction-check/SKILL.md` | D8 buildable (STUB) |
 | `src/hooks/.gitkeep` | Empty — Phase 7 |
-| `src/vault/.gitkeep` | Empty — Phase 6 |
+| `src/lab/.gitkeep` | Empty — Phase 6 |
 | `src/utils/.gitkeep` | Empty — fill as helpers emerge |
 | `scripts/.gitkeep` | Empty — Phase 1 adds `generate-schema.ts` |
 | `docs/.gitkeep` | Empty — Phase 10 (user docs) |
@@ -71,7 +71,7 @@ src/agents/*.ts   src/mcp/*.ts   scripts/        constants
 
 ## Differentiators (vs upstream like slim)
 
-- `src/vault/` and the wiki-contract — slim has no vault concept.
+- `src/lab/` and the wiki-contract — slim has no vault concept.
 - Claim-level schema with provenance (`design/Product Design.md` §7).
 - Draft → human-veto → canon flow.
 - Domain extension layer (`design/Product Design.md` §8) — generic core + optional packs.
@@ -87,7 +87,7 @@ src/agents/*.ts   src/mcp/*.ts   scripts/        constants
 | `src/config/` | `src/config/` | Same. |
 | `src/cli/` | `src/cli/` | Same pattern. Slim's CLI has install/doctor/skills/config-manager; ours starts with install/doctor. |
 | `src/hooks/` | `src/hooks/` | Slim has 11 hooks; we'll start with 1-2 (pre-write-drafts-only, session-summary). |
-| `src/vault/` | _(none)_ | Our differentiator. |
+| `src/lab/` | _(none)_ | Our differentiator. |
 | `src/utils/` | `src/utils/` | Standard. |
 | `src/council/` | `src/council/` | Slim has dedicated multi-LLM manager; we defer to Phase 2 (council persona is stubbed). |
 | `src/multiplexer/` | _(omitted)_ | Tmux/zellij; not needed for MVP. |

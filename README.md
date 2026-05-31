@@ -25,7 +25,7 @@ A focused OpenCode plugin that ships:
 - **Skill bundles** in `src/skills/<name>/SKILL.md` (~4 new + mirrors of canonical ARIS skills).
 - **MCP registrations** for Obsidian (`cyanheads/obsidian-mcp-server`), Zotero (`54yyyu/zotero-mcp`), and local semantic memory (`basicmachines-co/basic-memory`).
 - **CLI** with `install` (scaffolds user config + vault layout) and `doctor`.
-- **Vault contract**: claim-level schema with provenance, draft → human-veto → canon flow.
+- **Per-project lab**: claim-level schema with provenance, draft → human-veto → canon flow. Lives in `<project>/lab/`, separate from outside literature wiki.
 - **Domain extension layer** (RL pack will be the first).
 
 ## Project layout
@@ -44,7 +44,7 @@ omo-research/
 │   ├── config/            # Zod schema + loader
 │   ├── cli/               # install / doctor / etc.
 │   ├── hooks/             # OpenCode lifecycle hooks
-│   ├── vault/             # vault contract (drafts/claims/edges)
+│   ├── lab/               # per-project lab contract (canon/drafts/critique/edges)
 │   └── utils/             # shared helpers
 ├── scripts/               # generate-schema, verify, etc.
 ├── package.json

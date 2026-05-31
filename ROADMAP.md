@@ -8,16 +8,15 @@ Phase-by-phase build plan. Every step references real files in this repo.
 
 ---
 
-## Blocking decisions (resolve before Phase 1)
+## Blocking decisions (Phase 1 prerequisite)
 
-Phase 1 (config schema) cannot be written concretely without these 4 answers:
-
-| # | Decision | What to settle |
+| Decision | Status | Notes |
 |---|---|---|
-| **D11** | Inter-persona file conventions | Where do `_drafts/`, `critique/`, `claims/`, `results/`, handoff summaries live in the vault? |
-| **§7 vault layout** | Claim storage | Concretely: own `claims/` dir / inline with papers / tag-based? |
-| **Claim ID rule** | Stable IDs | slug from title? hash of content? UUID? timestamp+slug? Two ingests of the same paper must produce the same ID. |
-| **Contradiction threshold** | Similarity cutoff | Numeric value for flagging `potential_contradicts` (e.g. cosine > 0.85). |
+| ✅ D7 Lab + literature stack | Done (3bab394) | Per-project `<project>/lab/`; literature outside, read-only. |
+| ✅ D10 Auto-flag behavior | Done | Flags go into draft frontmatter; never block. |
+| ✅ D11 Inter-persona file conventions | Done (3bab394) | `lab/{drafts,critique,canon}/` + `log.md`. |
+| ✅ D12 Identifier rule | Done | Slug from title (drop stopwords, ≤60 chars, collision suffix). See Product Design §7. |
+| 🟥 **Contradiction threshold** | Open | Numeric cosine cutoff for `potential_contradicts`. Last Phase-1 blocker. |
 
 ---
 
@@ -38,7 +37,7 @@ Verifiable: `find src -type f` matches `codemap.md` layout.
 ## Phase 1 — Config + Schema 🟥 BLOCKED on decisions above
 
 Files to fill:
-- `src/config/schema.ts` — extend Zod with `vault.layout`, `vault.claim_id_rule`, `contradiction.threshold`, real per-persona defaults
+- `src/config/schema.ts` — extend Zod with `lab.dir`, `literature_wiki.path`, `contradiction.threshold`, real per-persona defaults
 - `src/config/constants.ts` — concrete defaults for new fields
 - `src/utils/paths.ts` (NEW) — path resolution helpers
 - `src/utils/logger.ts` (NEW) — logger
@@ -93,26 +92,26 @@ Verifiable: `bunx omo-research install` on a clean machine produces a user confi
 
 ---
 
-## Phase 6 — Vault contract (our differentiator)
+## Phase 6 — Lab contract (our differentiator)
 
-In `src/vault/`:
-- `layout.ts` (NEW) — creates `<vault>/{papers,ideas,experiments,claims,_drafts,critique}/` + `edges.jsonl`
+In `src/lab/`:
+- `layout.ts` (NEW) — creates `<lab>/{canon,drafts,critique}/` + `edges.jsonl` + root files (`README.md`, `SCHEMA.md`, `log.md`, `index.md`)
 - `claim-schema.ts` (NEW) — Zod for claim frontmatter, matching `design/Product Design.md` §7
-- `id-generator.ts` (NEW) — stable claim ID generator (depends on Claim ID rule decision)
+- `id-generator.ts` (NEW) — stable claim/exp/idea ID generator (depends on Claim ID rule decision)
 - `edges.ts` (NEW) — append/query helpers for `edges.jsonl`
 - `index.ts` (NEW)
 - `codemap.md` (NEW)
 
-Verifiable: `src/vault/layout.ts` invoked on a temp dir creates exactly the expected structure.
+Verifiable: `src/lab/layout.ts` invoked on a temp dir creates exactly the expected lab structure.
 
 ---
 
 ## Phase 7 — Hooks (minimum 1)
 
-- `src/hooks/pre-write-drafts-only/{index.ts, SKILL.md}` — OpenCode hook, refuses writes outside `<vault>/_drafts/`.
+- `src/hooks/pre-write-drafts-only/{index.ts, SKILL.md}` — OpenCode hook, refuses writes outside `<lab>/drafts/` (and `<lab>/critique/`).
 - `src/hooks/index.ts` — registers hooks at plugin load.
 
-Verifiable: a test issues a write outside drafts → hook rejects.
+Verifiable: a test issues a write outside `lab/drafts/` → hook rejects.
 
 ---
 
@@ -120,10 +119,10 @@ Verifiable: a test issues a write outside drafts → hook rejects.
 
 Replace STUB bodies in:
 - `src/skills/intake-dispatch-summary/SKILL.md` — deterministic handoff format spec
-- `src/skills/wiki-ingest/SKILL.md` — depends on `src/vault/layout.ts` + obsidian MCP
-- `src/skills/claim-extract/SKILL.md` — strict JSON extraction per `src/vault/claim-schema.ts`
+- `src/skills/wiki-ingest/SKILL.md` — depends on `src/lab/layout.ts` + obsidian MCP
+- `src/skills/claim-extract/SKILL.md` — strict JSON extraction per `src/lab/claim-schema.ts`
 
-Verifiable: `@librarian ingest arxiv:2501.12599` produces a draft claim in `<vault>/_drafts/`.
+Verifiable: `@librarian ingest arxiv:2501.12599` produces a draft claim in `<project>/lab/drafts/`.
 
 ---
 
