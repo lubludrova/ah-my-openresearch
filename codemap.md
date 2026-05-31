@@ -2,6 +2,8 @@
 
 Architecture map for `omo-research`. Pattern: focused OpenCode plugin modeled on `alvinunreal/oh-my-opencode-slim`, with our wiki-contract on top.
 
+> Phase-by-phase build plan is in [`ROADMAP.md`](ROADMAP.md). This file is architecture only (what depends on what); ROADMAP is the build sequence.
+
 ## Dependency cascade (what depends on what)
 
 ```text

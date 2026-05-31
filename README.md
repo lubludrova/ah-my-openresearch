@@ -2,11 +2,13 @@
 
 > Research analogue of oh-my-openagent: research personas + skills + living Obsidian wiki for OpenCode/Codex/Claude Code.
 
-**Status:** scaffold, pre-MVP. Canonical design lives in [`design/`](design/).
+**Status:** scaffold, pre-MVP. `src/**` is STUBs only — no business logic written yet. See [`ROADMAP.md`](ROADMAP.md) for the phase plan.
+
+Canonical design lives in `design/` — **gitignored, local-only** (private design notes). If you cloned the repo, that folder is empty. The local canonical files are `design/Product Design.md` and `design/Skill Catalog.md`.
 
 ## Quickstart
 
-Not buildable yet — see `design/Product Design.md` §10 "Roadmap" and `codemap.md` "Cascade".
+Not buildable yet — see [`ROADMAP.md`](ROADMAP.md) phases 0–10.
 
 ```bash
 # After Phase 0 of the cascade:
@@ -30,11 +32,9 @@ A focused OpenCode plugin that ships:
 
 ```text
 omo-research/
-├── design/                # canonical product design (moved from Obsidian)
+├── design/                # canonical product design (local-only, gitignored)
 │   ├── Product Design.md
-│   ├── Skill Catalog.md
-│   ├── Archived Research Sources.md
-│   └── External Solutions.md
+│   └── Skill Catalog.md
 ├── docs/                  # user-facing docs (TBD)
 ├── src/
 │   ├── index.ts           # plugin entry
