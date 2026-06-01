@@ -29,9 +29,10 @@ src/agents/*.ts   src/mcp/*.ts   scripts/        constants
            ├──────────────────┐
            ▼                  ▼
     src/lab/           src/hooks/pre-write-drafts-only/
-    (lab layout,       (enforces lab/drafts/ only writes)
-     edges, claim
-     schema, validators)
+    (lab layout —      (enforces lab/drafts/ only writes;
+     drafts/, edges,    canon hook adds in Phase 8)
+     claim schema,
+     validators)
            │
            ▼
     src/skills/wiki-ingest/SKILL.md

@@ -2,8 +2,8 @@
 //
 // Will:
 //   1. Create ~/.config/opencode/amore.json from defaults (D16 schema in src/config/schema.ts).
-//   2. Scaffold <project>/lab/ layout: canon/, drafts/, critique/, README.md, SCHEMA.md,
-//      log.md, index.md, edges.jsonl (D7).
+//   2. Scaffold <project>/lab/ layout: drafts/ + README.md, SCHEMA.md, log.md,
+//      index.md, edges.jsonl (D7). Canon/critique deferred to Phase 8 (D18).
 //   3. Register MCPs (obsidian-mcp-server, zotero-mcp, basic-memory) in
 //      ~/.config/opencode/mcp.json — additive merge, install-hints printed (D15).
 //   4. Symlink ARIS skills from ~/Tools/aris/skills/skills-codex/<name>/ → OpenCode

@@ -97,7 +97,7 @@ Verifiable: `bunx ah-my-openresearch install` (or `amore install` once installed
 ## Phase 6 — Lab contract (our differentiator)
 
 In `src/lab/`:
-- `layout.ts` (NEW) — creates `<lab>/{canon,drafts,critique}/` + `edges.jsonl` + root files (`README.md`, `SCHEMA.md`, `log.md`, `index.md`)
+- `layout.ts` (NEW) — creates `<lab>/drafts/` + `edges.jsonl` + root files (`README.md`, `SCHEMA.md`, `log.md`, `index.md`). Canon/critique deferred to Phase 8 (D18).
 - `claim-schema.ts` (NEW) — Zod for claim frontmatter, matching `design/Product Design.md` §7
 - `id-generator.ts` (NEW) — stable claim/exp/idea ID generator (depends on Claim ID rule decision)
 - `edges.ts` (NEW) — append/query helpers for `edges.jsonl`
@@ -110,7 +110,7 @@ Verifiable: `src/lab/layout.ts` invoked on a temp dir creates exactly the expect
 
 ## Phase 7 — Hooks (minimum 1)
 
-- `src/hooks/pre-write-drafts-only/{index.ts, SKILL.md}` — OpenCode hook, refuses writes outside `<lab>/drafts/` (and `<lab>/critique/`).
+- `src/hooks/pre-write-drafts-only/{index.ts, SKILL.md}` — OpenCode hook, refuses writes outside `<lab>/drafts/`. (Canon hook to be added in Phase 8.)
 - `src/hooks/index.ts` — registers hooks at plugin load.
 
 Verifiable: a test issues a write outside `lab/drafts/` → hook rejects.

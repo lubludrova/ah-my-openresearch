@@ -62,5 +62,5 @@ Every stub file has `(STUB)` or `TODO:` markers. When implementing, remove the m
 
 - Don't break the cascade order from `codemap.md` (e.g. don't wire CLI install before config schema is real).
 - Don't add deps not justified by design (every dep should map to a section in `design/Product Design.md`).
-- Don't write outside `<project>/lab/drafts/` (or `lab/critique/`) from agents (this will be enforced by `src/hooks/pre-write-drafts-only/` once it exists).
+- Don't write outside `<project>/lab/drafts/` from agents (will be enforced by `src/hooks/pre-write-drafts-only/` once it exists). Canon/critique hooks added in Phase 8 (D18).
 - Don't translate `design/*` docs without keeping the original (they're historical record).
