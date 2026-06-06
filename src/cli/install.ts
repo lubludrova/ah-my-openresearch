@@ -1,11 +1,14 @@
 import { relative } from 'node:path';
 import { createLab, validateLabLayout } from '../lab';
 import { logger } from '../utils';
+import { bootstrapProjectConfig } from './bootstrap';
 
 export interface InstallOptions {
   cwd?: string;
   labDir?: string;
   reconcile?: boolean;
+  /** When false, skip the lab/config.json + opencode.json bootstrap step. */
+  bootstrap?: boolean;
 }
 
 export async function install(options: InstallOptions = {}): Promise<void> {
@@ -38,10 +41,30 @@ export async function install(options: InstallOptions = {}): Promise<void> {
     );
   }
 
+  if (options.bootstrap !== false) {
+    const result = bootstrapProjectConfig({
+      cwd,
+      labDir: options.labDir,
+    });
+    if (result.labConfig) {
+      const message = result.detectedWikiPath
+        ? `Wrote ${relative(cwd, result.labConfig) || result.labConfig} (literature_wiki_path = ${result.detectedWikiPath}).`
+        : `Wrote ${relative(cwd, result.labConfig) || result.labConfig} (no wiki auto-detected — set literature_wiki_path manually).`;
+      logger.info(message);
+    }
+    if (result.opencodeConfig) {
+      logger.info(
+        `Wrote ${relative(cwd, result.opencodeConfig) || result.opencodeConfig} (plugin: ["ah-my-openresearch"]). Composes with ~/.config/opencode/opencode.json.`,
+      );
+    }
+    if (!result.labConfig && !result.opencodeConfig) {
+      logger.info(
+        'Bootstrap skipped: lab/config.json and opencode.json already exist.',
+      );
+    }
+  }
+
   logger.info(
-    'Global config was not created. OpenCode MCP config was not modified.',
-  );
-  logger.info(
-    'Optional later setup: configure Obsidian/Zotero/Basic Memory when plugin runtime is wired.',
+    'Global OpenCode config was not modified. MCP setup (e.g. Obsidian) is opt-in per project.',
   );
 }

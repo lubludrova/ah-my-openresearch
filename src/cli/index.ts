@@ -10,24 +10,28 @@ function printHelp(): void {
   console.log(`amore — ah-my-openresearch
 
 Usage:
-  amore install [--lab-dir <path>] [--reconcile]
+  amore install [--lab-dir <path>] [--reconcile] [--no-bootstrap]
   amore doctor [--lab-dir <path>] [--repair] [--json]
   amore --help
   amore --version
 
 Commands:
-  install      Create/validate the local <project>/lab/ scaffold.
+  install      Create the local <project>/lab/ scaffold and seed
+               <project>/lab/config.json + <project>/opencode.json
+               (idempotent; never overwrites).
   doctor       Validate the local <project>/lab/ contract.
 
 Options:
-  --lab-dir    Project-local lab path. Defaults to ./lab.
-  --reconcile  Write README.md.new / SCHEMA.md.new candidates if docs differ.
-  --repair     Repair safe lab files and regenerate index.md.
-  --json       Print machine-readable doctor output.
-  -h, --help   Show help.
-  --version    Show version.
+  --lab-dir       Project-local lab path. Defaults to ./lab.
+  --reconcile     Write README.md.new / SCHEMA.md.new candidates if docs differ.
+  --no-bootstrap  Skip the lab/config.json + opencode.json seed step.
+  --repair        Repair safe lab files and regenerate index.md.
+  --json          Print machine-readable doctor output.
+  -h, --help      Show help.
+  --version       Show version.
 
-MVP install is local-only: it does not create global config and does not mutate OpenCode MCP config.`);
+MVP install is local-only: it does not create global config and does not mutate
+OpenCode MCP config.`);
 }
 
 function readOptionValue(
@@ -63,6 +67,7 @@ async function main(args: string[]): Promise<void> {
 
   let labDir: string | undefined;
   let reconcile = false;
+  let bootstrap = true;
   let repair = false;
   let json = false;
 
@@ -81,6 +86,15 @@ async function main(args: string[]): Promise<void> {
       }
 
       reconcile = true;
+      continue;
+    }
+
+    if (arg === '--no-bootstrap') {
+      if (command !== 'install') {
+        throw new Error('--no-bootstrap is only valid for amore install.');
+      }
+
+      bootstrap = false;
       continue;
     }
 
@@ -111,7 +125,7 @@ async function main(args: string[]): Promise<void> {
   }
 
   if (command === 'install') {
-    await install({ labDir, reconcile });
+    await install({ labDir, reconcile, bootstrap });
     return;
   }
 
