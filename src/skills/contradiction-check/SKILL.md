@@ -1,13 +1,13 @@
 ---
 name: contradiction-check
-description: STUB (D8) — ingest-time semantic contradiction check against supported claims; writes potential_contradicts to draft frontmatter.
+description: STUB (D8/D13) — post-MVP semantic contradiction check against canon claims; advisory only, never blocks writes.
 ---
 
 # contradiction-check (STUB)
 
-~150 lines on basicmachines-co/basic-memory (fastembed + sqlite-vec). No graph DB. Only flags, never blocks. Run on every wiki-ingest.
+Post-MVP skill backed by basicmachines-co/basic-memory (fastembed + sqlite-vec). It runs after `canon/` exists, compares candidate claims against reviewed canon claims, and returns advisory contradiction candidates. It does not add contradiction frontmatter and is not part of the MVP ingest loop.
 
 ## Related
 
 - design/Skill Catalog.md → `contradiction-check` row
-- design/Product Design.md §7 (Wiki / Claim Contract)
+- design/Product Design.md §7 (Contradiction-check policy)
