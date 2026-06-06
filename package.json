@@ -1,7 +1,7 @@
 {
   "name": "ah-my-openresearch",
-  "version": "0.0.0",
-  "description": "Research analogue of oh-my-openagent: research personas + skills + living Obsidian wiki for OpenCode/Codex/Claude Code.",
+  "version": "0.0.1",
+  "description": "Research laboratory with personas, skills, document control, and outside literature wiki for OpenCode/Codex/Claude Code.",
   "private": true,
   "type": "module",
   "main": "dist/index.js",
@@ -13,12 +13,16 @@
   "files": [
     "dist",
     "src/skills",
-    "amore.schema.json",
+    "ah-my-openresearch.schema.json",
     "README.md",
     "LICENSE"
   ],
   "scripts": {
-    "build": "echo 'TODO: wire bun build per Phase 0' && exit 1",
+    "build:plugin": "bun build src/index.ts --outdir dist --target node --format esm",
+    "build:cli": "bun build src/cli/index.ts --outdir dist/cli --target node --format esm && chmod +x dist/cli/index.js",
+    "build:types": "tsc -p tsconfig.build.json",
+    "build": "rm -rf dist && bun run build:plugin && bun run build:cli && bun run build:types && bun run generate:schema",
+    "generate:schema": "bun run scripts/generate-schema.ts && biome format --write ah-my-openresearch.schema.json",
     "typecheck": "tsc --noEmit",
     "test": "bun test",
     "lint": "biome lint .",
@@ -27,11 +31,15 @@
     "check:ci": "biome check ."
   },
   "dependencies": {
-    "zod": "^3.23.0"
+    "@opencode-ai/plugin": "^1.3.17",
+    "@opencode-ai/sdk": "^1.3.17",
+    "yaml": "^2.9.0",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.0",
     "@types/node": "^22.0.0",
+    "bun-types": "^1.3.14",
     "typescript": "^5.6.0"
   },
   "keywords": [

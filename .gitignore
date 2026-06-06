@@ -5,5 +5,4 @@ dist/
 .env.local
 .DS_Store
 
-# design docs are local-only (canonical product design)
 design/

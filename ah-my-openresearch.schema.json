@@ -1,0 +1,383 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "default": "v1",
+      "type": "string",
+      "const": "v1"
+    },
+    "lab_dir": {
+      "default": "./lab",
+      "type": "string"
+    },
+    "literature_wiki_path": {
+      "type": "string"
+    },
+    "personas": {
+      "type": "object",
+      "properties": {
+        "orchestrator": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "default": true,
+              "type": "boolean"
+            },
+            "model": {
+              "type": "string"
+            },
+            "tier": {
+              "type": "string",
+              "enum": ["cheap", "midtier", "frontier", "mixed"]
+            },
+            "mcps": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "skills": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "temperature": {
+              "default": 0.1,
+              "type": "number",
+              "minimum": 0,
+              "maximum": 2
+            },
+            "max_tokens": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "custom_prompt": {
+              "type": "string"
+            },
+            "custom_append_prompt": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        },
+        "librarian": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "default": true,
+              "type": "boolean"
+            },
+            "model": {
+              "type": "string"
+            },
+            "tier": {
+              "type": "string",
+              "enum": ["cheap", "midtier", "frontier", "mixed"]
+            },
+            "mcps": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "skills": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "temperature": {
+              "default": 0.1,
+              "type": "number",
+              "minimum": 0,
+              "maximum": 2
+            },
+            "max_tokens": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "custom_prompt": {
+              "type": "string"
+            },
+            "custom_append_prompt": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        },
+        "prospector": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "default": true,
+              "type": "boolean"
+            },
+            "model": {
+              "type": "string"
+            },
+            "tier": {
+              "type": "string",
+              "enum": ["cheap", "midtier", "frontier", "mixed"]
+            },
+            "mcps": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "skills": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "temperature": {
+              "default": 0.1,
+              "type": "number",
+              "minimum": 0,
+              "maximum": 2
+            },
+            "max_tokens": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "custom_prompt": {
+              "type": "string"
+            },
+            "custom_append_prompt": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        },
+        "coder": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "default": true,
+              "type": "boolean"
+            },
+            "model": {
+              "type": "string"
+            },
+            "tier": {
+              "type": "string",
+              "enum": ["cheap", "midtier", "frontier", "mixed"]
+            },
+            "mcps": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "skills": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "temperature": {
+              "default": 0.1,
+              "type": "number",
+              "minimum": 0,
+              "maximum": 2
+            },
+            "max_tokens": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "custom_prompt": {
+              "type": "string"
+            },
+            "custom_append_prompt": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        },
+        "council": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "default": true,
+              "type": "boolean"
+            },
+            "model": {
+              "type": "string"
+            },
+            "tier": {
+              "type": "string",
+              "enum": ["cheap", "midtier", "frontier", "mixed"]
+            },
+            "mcps": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "skills": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "temperature": {
+              "default": 0.1,
+              "type": "number",
+              "minimum": 0,
+              "maximum": 2
+            },
+            "max_tokens": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "custom_prompt": {
+              "type": "string"
+            },
+            "custom_append_prompt": {
+              "type": "string"
+            },
+            "councillors": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "model": {
+                    "type": "string"
+                  },
+                  "role": {
+                    "type": "string"
+                  }
+                },
+                "required": ["model"],
+                "additionalProperties": false
+              }
+            },
+            "budget_max_tokens": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            }
+          },
+          "additionalProperties": false
+        },
+        "writer": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "default": true,
+              "type": "boolean"
+            },
+            "model": {
+              "type": "string"
+            },
+            "tier": {
+              "type": "string",
+              "enum": ["cheap", "midtier", "frontier", "mixed"]
+            },
+            "mcps": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "skills": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "temperature": {
+              "default": 0.1,
+              "type": "number",
+              "minimum": 0,
+              "maximum": 2
+            },
+            "max_tokens": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "custom_prompt": {
+              "type": "string"
+            },
+            "custom_append_prompt": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "mcps": {
+      "type": "object",
+      "properties": {
+        "obsidian": {
+          "type": "object",
+          "properties": {
+            "api_key": {
+              "type": "string"
+            },
+            "base_url": {
+              "type": "string"
+            },
+            "write_paths": {
+              "type": "string"
+            },
+            "read_paths": {
+              "type": "string"
+            },
+            "read_only": {
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": false
+        },
+        "basic-memory": {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "domain": {
+      "type": "string"
+    },
+    "domains_dir": {
+      "type": "string"
+    },
+    "contradiction": {
+      "default": {
+        "threshold": 0.8,
+        "embedding_model": "BAAI/bge-small-en-v1.5",
+        "candidate_statuses": ["supported", "partial"]
+      },
+      "type": "object",
+      "properties": {
+        "threshold": {
+          "default": 0.8,
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "embedding_model": {
+          "default": "BAAI/bge-small-en-v1.5",
+          "type": "string"
+        },
+        "candidate_statuses": {
+          "default": ["supported", "partial"],
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false,
+  "title": "ah-my-openresearch config",
+  "description": "Configuration schema for ah-my-openresearch (amore)."
+}

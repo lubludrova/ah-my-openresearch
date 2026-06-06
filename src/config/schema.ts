@@ -1,8 +1,16 @@
-// Zod schema for ~/.config/opencode/amore.json
+// Zod schema for the global amore config file.
 // Source of truth for user-configurable fields. See design/Product Design.md §3 D16.
-// Run scripts/generate-schema.ts to produce amore.schema.json for IDE autocomplete.
+// Run scripts/generate-schema.ts to produce ah-my-openresearch.schema.json for IDE autocomplete.
 
 import { z } from 'zod';
+import {
+  CONFIG_SCHEMA_VERSION,
+  CONTRADICTION_CANDIDATE_STATUSES,
+  CONTRADICTION_EMBEDDING_MODEL,
+  CONTRADICTION_THRESHOLD_DEFAULT,
+  DEFAULT_LAB_DIR,
+  DEFAULT_PERSONA_TEMPERATURE,
+} from './constants';
 
 // ────────────────────────────────────────────────────────────────────
 // Tier
@@ -17,7 +25,7 @@ export type Tier = z.infer<typeof TierSchema>;
 // NOT in this schema. User config selectively overrides those defaults.
 // ────────────────────────────────────────────────────────────────────
 
-export const PersonaConfigSchema = z.object({
+export const PersonaConfigSchema = z.strictObject({
   enabled: z.boolean().default(true),
 
   // Provider/model-id, e.g. 'anthropic/claude-haiku-4-5'.
@@ -36,7 +44,7 @@ export const PersonaConfigSchema = z.object({
   skills: z.array(z.string()).optional(),
 
   // Sampling temperature. Default 0.1 (deterministic-ish).
-  temperature: z.number().min(0).max(2).default(0.1),
+  temperature: z.number().min(0).max(2).default(DEFAULT_PERSONA_TEMPERATURE),
 
   // Output token cap. Optional.
   max_tokens: z.number().positive().optional(),
@@ -53,7 +61,7 @@ export type PersonaConfig = z.infer<typeof PersonaConfigSchema>;
 // Council config — extends PersonaConfigSchema with multi-LLM fields
 // ────────────────────────────────────────────────────────────────────
 
-export const CouncillorSchema = z.object({
+export const CouncillorSchema = z.strictObject({
   model: z.string(),
   // Optional role hint for prompting (e.g. 'adversarial', 'supportive', 'expert').
   role: z.string().optional(),
@@ -72,7 +80,7 @@ export type CouncilConfig = z.infer<typeof CouncilConfigSchema>;
 // Personas map — typed by persona name (D6)
 // ────────────────────────────────────────────────────────────────────
 
-export const PersonasConfigSchema = z.object({
+export const PersonasConfigSchema = z.strictObject({
   orchestrator: PersonaConfigSchema.optional(),
   librarian: PersonaConfigSchema.optional(),
   prospector: PersonaConfigSchema.optional(),
@@ -83,23 +91,62 @@ export const PersonasConfigSchema = z.object({
 export type PersonasConfig = z.infer<typeof PersonasConfigSchema>;
 
 // ────────────────────────────────────────────────────────────────────
-// Contradiction-check config (D13)
+// Post-MVP contradiction-check config (D13). MVP has no auto-flag loop.
 // ────────────────────────────────────────────────────────────────────
 
-export const ContradictionConfigSchema = z.object({
-  threshold: z.number().min(0).max(1).default(0.80),
-  embedding_model: z.string().default('BAAI/bge-small-en-v1.5'),
-  candidate_statuses: z.array(z.string()).default(['supported', 'partial']),
+export const ContradictionConfigSchema = z.strictObject({
+  threshold: z.number().min(0).max(1).default(CONTRADICTION_THRESHOLD_DEFAULT),
+  embedding_model: z.string().default(CONTRADICTION_EMBEDDING_MODEL),
+  candidate_statuses: z
+    .array(z.string())
+    .default([...CONTRADICTION_CANDIDATE_STATUSES]),
 });
 export type ContradictionConfig = z.infer<typeof ContradictionConfigSchema>;
+
+// ────────────────────────────────────────────────────────────────────
+// MCP user config (D15)
+// Exact upstream command/env recipes are confirmed in Phase 3. These schemas
+// represent user-provided values consumed by the current MCP registry stubs.
+// ────────────────────────────────────────────────────────────────────
+
+// Obsidian MCP env-overrides. The MCP itself reads OBSIDIAN_API_KEY and
+// related env vars at server-startup time (see src/mcp/obsidian.ts). These
+// schema fields exist so a project can declare them in lab/config.json and
+// `amore install`/`amore doctor` can verify them without re-reading process.env.
+export const ObsidianMcpConfigSchema = z.strictObject({
+  api_key: z.string().optional(),
+  base_url: z.string().optional(),
+  // Server-side write/read allowlists (forwarded to OBSIDIAN_WRITE_PATHS / READ_PATHS).
+  write_paths: z.string().optional(),
+  read_paths: z.string().optional(),
+  read_only: z.boolean().optional(),
+});
+export type ObsidianMcpConfig = z.infer<typeof ObsidianMcpConfigSchema>;
+
+// Basic-memory has no env-based storage path; projects are managed via the
+// `basic-memory project add` CLI. Schema currently has no user-facing fields,
+// but kept as a strictObject placeholder so doctor can warn if the user sets
+// stale fields here.
+export const BasicMemoryMcpConfigSchema = z.strictObject({});
+export type BasicMemoryMcpConfig = z.infer<typeof BasicMemoryMcpConfigSchema>;
+
+export const McpsConfigSchema = z.strictObject({
+  obsidian: ObsidianMcpConfigSchema.optional(),
+  'basic-memory': BasicMemoryMcpConfigSchema.optional(),
+});
+export type McpsConfig = z.infer<typeof McpsConfigSchema>;
 
 // ────────────────────────────────────────────────────────────────────
 // Top-level amore config
 // ────────────────────────────────────────────────────────────────────
 
-export const AmoreConfigSchema = z.object({
+export const AmoreConfigSchema = z.strictObject({
+  schema_version: z
+    .literal(CONFIG_SCHEMA_VERSION)
+    .default(CONFIG_SCHEMA_VERSION),
+
   // Path to the project's lab/ directory.
-  lab_dir: z.string().default('./lab'),
+  lab_dir: z.string().default(DEFAULT_LAB_DIR),
 
   // Path to the outside literature wiki (cross-project source).
   // Omit → librarian operates without a literature-tier write target.
@@ -109,14 +156,20 @@ export const AmoreConfigSchema = z.object({
   personas: PersonasConfigSchema.optional(),
 
   // Per-MCP user config. Keyed by MCP name from MCP_REGISTRY.
-  // TODO Phase 1: replace with typed McpsConfigSchema once D15 user-config
-  // collection flow is implemented.
-  mcps: z.record(z.string(), z.record(z.string(), z.string())).optional(),
+  mcps: McpsConfigSchema.optional(),
 
   // Active domain pack (e.g. 'rl'). Undefined = generic mode.
   domain: z.string().optional(),
 
+  // Optional directory for user/domain pack overrides. Core built-in packs are
+  // resolved by the runtime loader when D26 is implemented.
+  domains_dir: z.string().optional(),
+
   // Contradiction-check config (D13).
-  contradiction: ContradictionConfigSchema.default({}),
+  contradiction: ContradictionConfigSchema.default({
+    threshold: CONTRADICTION_THRESHOLD_DEFAULT,
+    embedding_model: CONTRADICTION_EMBEDDING_MODEL,
+    candidate_statuses: [...CONTRADICTION_CANDIDATE_STATUSES],
+  }),
 });
 export type AmoreConfig = z.infer<typeof AmoreConfigSchema>;
