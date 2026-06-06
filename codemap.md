@@ -1,98 +1,223 @@
 # codemap
 
-Architecture map for `ah-my-openresearch` (alias `amore`). Pattern: focused OpenCode plugin modeled on `alvinunreal/oh-my-opencode-slim`, with our wiki-contract on top.
+Architecture map for `ah-my-openresearch` (alias `amore`).
 
-> Phase-by-phase build plan is in [`ROADMAP.md`](ROADMAP.md). This file is architecture only (what depends on what); ROADMAP is the build sequence.
+Pattern: standalone OpenCode plugin, modeled structurally on
+`alvinunreal/oh-my-opencode-slim`, with a project-local research lab and an
+outside literature wiki contract layered on top.
 
-## Dependency cascade (what depends on what)
+`ROADMAP.md` owns build sequence. `CHANGELOG.md` owns frozen phase history.
+This file owns module dependencies and boundaries.
+
+## Dependency Cascade
 
 ```text
-package.json / tsconfig / biome              ← Phase 0 (scaffold; done)
+package.json / tsconfig / biome
     │
     ▼
-src/config/schema.ts (Zod)                   ← Phase 1 (READY — all blockers resolved)
+src/config/schema.ts + constants ─── src/config/loader.ts
     │
-    ├──────────────┬──────────────────┬──────────────┐
-    ▼              ▼                  ▼              ▼
-src/agents/*.ts   src/mcp/*.ts   scripts/        constants
-(6 factories)     (3 MCPs)       generate-schema
-    │              │                  │
-    └──────┬───────┘                  ▼
-           ▼                  ah-my-openresearch.schema.json (generated)
-    src/index.ts                       │
-    (plugin entry)                     │
-           │                           │
-           ▼                           │
-    src/cli/install.ts ←───────────────┘
-    (scaffolds lab/, registers MCPs, writes user config)
-           │
-           ├──────────────────┐
-           ▼                  ▼
-    src/lab/           src/hooks/pre-write-drafts-only/
-    (lab layout —      (enforces lab/drafts/ only writes;
-     drafts/, edges,    canon hook adds in Phase 8)
-     claim schema,
-     validators)
-           │
-           ▼
-    src/skills/wiki-ingest/SKILL.md
-    src/skills/claim-extract/SKILL.md
-    src/skills/intake-dispatch-summary/SKILL.md
-           │
-           ▼
-    src/skills/contradiction-check/SKILL.md + python helper
-    (D8 — the buildable artifact)
+    ├───────────────┬────────────────┬───────────────────┐
+    ▼               ▼                ▼                   ▼
+src/utils/      scripts/         src/mcp/            domain config
+paths/logger    generate-schema  registry            loader later
+    │               │                │
+    │               ▼                ▼
+    │        schema artifact     MCP manifests
+    │
+    ▼
+src/lab/   (layout · artifact-schema · provenance · id-generator
+            edges · indexer · log)
+    │
+    ├────────────────────────────┐
+    ▼                            ▼
+src/cli/install.ts          src/cli/doctor.ts
+scaffold local lab          validate/repair
+    │
+    ▼
+src/hooks/pre-write-drafts-only/
+    │
+    ▼
+src/skills/<P0 skills>
+    │
+    ▼
+src/agents/<6 personas>
+    │
+    ▼
+src/index.ts (plugin entry)
 ```
 
-## What's where (current scaffold)
+Post-MVP additions depend on the MVP loop:
 
-| Path | What |
+```text
+Wave 2 prospector wire-up
+  → Wave 3 coder wire-up (skills already written)
+  → canon/contradiction
+  → Wave 4 writer/council wire-up (skills already written)
+```
+
+## Directory Map
+
+| Path | Role |
 |---|---|
-| `src/index.ts` | Plugin entry (STUB) — will wire agents + MCPs + hooks |
-| `src/agents/types.ts` | `AgentDefinition` + `Tier` types |
-| `src/agents/{orchestrator,librarian,prospector,coder,council,writer}.ts` | 6 persona factories (STUB prompts) |
-| `src/agents/index.ts` | Aggregator |
-| `src/cli/index.ts` | CLI entry (STUB) |
-| `src/cli/install.ts` | Install command (STUB — blocked on D11 + §7 layout) |
-| `src/config/schema.ts` | Zod schema for user config (STUB — needs full fields) |
-| `src/config/constants.ts` | Defaults: `~/.config/opencode/ah-my-openresearch.json`, `~/RL-Wiki`, MVP persona list |
-| `src/mcp/obsidian.ts` | Registration for `cyanheads/obsidian-mcp-server` (STUB) |
-| `src/mcp/zotero.ts` | Registration for `54yyyu/zotero-mcp` (STUB) |
-| `src/mcp/basic-memory.ts` | Registration for `basicmachines-co/basic-memory` (STUB) |
-| `src/skills/intake-dispatch-summary/SKILL.md` | Orchestrator front-door router (STUB) |
-| `src/skills/claim-extract/SKILL.md` | Atomic claim extraction with schema (STUB) |
-| `src/skills/wiki-ingest/SKILL.md` | Write drafts to vault via obsidian-mcp-server (STUB) |
-| `src/skills/contradiction-check/SKILL.md` | D8 buildable (STUB) |
-| `src/hooks/.gitkeep` | Empty — Phase 7 |
-| `src/lab/.gitkeep` | Empty — Phase 6 |
-| `src/utils/.gitkeep` | Empty — fill as helpers emerge |
-| `scripts/.gitkeep` | Empty — Phase 1 adds `generate-schema.ts` |
-| `docs/.gitkeep` | Empty — Phase 10 (user docs) |
-| `design/` | Canonical design docs (moved from Obsidian) |
+| `src/index.ts` | Plugin entry. Returns `Hooks.config` (merges personas + MCPs) and `tool.execute.before` (mounts the write-boundary hook). |
+| `src/agents/` | 6 persona factories returning the SDK-flat `AgentDefinition` shape; `createAllAgents({models?, wikiPath?})` aggregator. |
+| `src/skills/<name>/SKILL.md` | Markdown skill bodies invoked by personas. |
+| `src/mcp/` | Builtin MCP registry — `obsidian` and `basic-memory` (Zotero removed Phase 3). |
+| `src/config/` | Zod schema (source of truth), constants, optional config loader. |
+| `src/cli/` | `install` and `doctor` commands. |
+| `src/hooks/` | OpenCode lifecycle hooks; `pre-write-drafts-only` enforces lab write boundary. |
+| `src/lab/` | Per-project lab contract — layout, artifact schemas, provenance, IDs, edges, log, indexer. Main differentiator. |
+| `src/utils/` | Path expansion, logger. |
+| `scripts/` | Build-time helpers; `generate-schema.ts` for JSON Schema export. |
+| `docs/` | User-facing docs (Phase 8 — currently empty). |
+| `design/` | Canonical local-only product design (gitignored). |
 
-## Differentiators (vs upstream like slim)
+## Lab Contract Boundary
 
-- `src/lab/` and the wiki-contract — slim has no vault concept.
-- Claim-level schema with provenance (`design/Product Design.md` §7).
-- Draft → human-veto → canon flow.
-- Domain extension layer (`design/Product Design.md` §8) — generic core + optional packs.
-- Contradiction-check pipeline (D8) on `basicmachines-co/basic-memory`.
+MVP lab layout is fixed by D7/D18/D21–D25:
 
-## Mapping to slim's structure
+```text
+<project>/lab/
+├── README.md       # human operating guide; create-if-missing
+├── SCHEMA.md       # local schema contract; create-if-missing
+├── log.md          # append-only changelog and handoffs
+├── index.md        # generated catalog; safe to overwrite
+├── edges.jsonl     # machine-readable graph facts
+└── drafts/         # all agent-written artifacts in MVP
+    ├── claim-<slug>.md
+    ├── exp-<slug>.md
+    └── idea-<slug>.md
+```
+
+No `canon/` or `critique/` directory exists in MVP. They arrive post-MVP
+with the approval/canon/contradiction phase.
+
+Module → design mapping:
+
+| Module | Design |
+|---|---|
+| `src/lab/layout.ts` | D7, D18, D25 |
+| `src/lab/artifact-schema.ts` | D21 |
+| `src/lab/provenance.ts` | D22 |
+| `src/lab/edges.ts` | D23 |
+| `src/lab/log.ts` | D20 |
+| `src/lab/indexer.ts` | D24 |
+| `src/lab/id-generator.ts` | D12 |
+
+## Knowledge Stores
+
+`amore` intentionally has two writable knowledge stores:
+
+| Store | Location | Purpose | Rules |
+|---|---|---|---|
+| Literature wiki | outside project, e.g. `~/RL-Wiki` | Cross-project paper notes, concepts, MoCs | Wiki Contract D19 |
+| Project lab | `<project>/lab/` | Project-specific claims, ideas, experiments, edges | Lab Contract D20–D25 |
+
+`librarian` may write to both, with different schemas and logs. Literature
+`ingest` writes to the wiki log. Project artifact writes append to
+`lab/log.md` and may update `edges.jsonl` / regenerate `index.md`.
+
+## Plugin Boundary
+
+Six personas in scope from the first build: `orchestrator`, `librarian`,
+`prospector`, `coder`, `council`, `writer` (D2/D6).
+
+Plugin entry responsibilities:
+
+- read optional `<project>/lab/config.json` and optional global config
+  (`~/.config/opencode/ah-my-openresearch.json`) via `src/config/loader.ts`;
+- register all six personas through `Hooks.config` against
+  `opencodeConfig.agent`, preserving user-supplied entries;
+- register builtin MCPs through `Hooks.config` against `opencodeConfig.mcp`;
+- mount the `pre-write-drafts-only` hook under `tool.execute.before`.
+
+## MCP Boundary
+
+Two parallel exports in `src/mcp/index.ts` mirror omo-slim shape (verified
+Phase 3):
+
+```typescript
+// Consumed directly by OpenCode under the plugin's `mcp` key.
+type LocalMcpConfig = {
+  type: 'local';
+  command: string[];                       // single argv array, not split
+  environment?: Record<string, string>;
+};
+type RemoteMcpConfig = {
+  type: 'remote';
+  url: string;
+  headers?: Record<string, string>;
+  oauth?: false;
+};
+type McpConfig = LocalMcpConfig | RemoteMcpConfig;
+
+// amore-only metadata for `amore install` / `amore doctor` CLI hints.
+type McpMeta = {
+  upstream: string;
+  required: 'required' | 'optional' | 'phase8+';
+  install_hint: string;
+};
+
+createBuiltinMcps(disabled?): Record<string, McpConfig>
+MCP_META: Record<string, McpMeta>
+```
+
+MVP required: `obsidian` (`bunx obsidian-mcp-server@latest`, env
+`OBSIDIAN_API_KEY` etc.).
+
+Phase 8+: `basic-memory` (`uvx basic-memory mcp`) — activated only when
+post-MVP contradiction-check turns on.
+
+Removed Phase 3: `zotero` — outside literature is handled through the
+Obsidian wiki + raw files only.
+
+Notes:
+
+- Obsidian MCP covers the **outside literature wiki only**; `<project>/lab/`
+  is written by host-native tools (Read/Write/Bash) + the Phase 6
+  write-boundary hook. This keeps Phase 6 simple (no MCP-call interception)
+  and removes the requirement that lab/ be added as an Obsidian vault.
+- `OBSIDIAN_WRITE_PATHS` / `OBSIDIAN_READ_PATHS` provide a server-side
+  second-layer write boundary if the user opts in.
+
+## Domain Extension Boundary
+
+Domain packs are declarative only (D26). They can add:
+
+- taxonomy/tags;
+- venue/source hints;
+- prompt templates;
+- persona/skill allowlist entries;
+- fields under artifact frontmatter `domain:{}`.
+
+They cannot mutate core artifact fields, core status enums, core edge
+types, `node_id` rules, or runtime code. Runtime loader belongs in
+`src/config/domain-loader.ts` post-MVP if needed for the demo.
+
+## Differentiators
+
+Compared with upstream slim-like plugins:
+
+- project-local `lab/` contract;
+- two-tier knowledge architecture: outside literature wiki plus project lab;
+- claim/idea/experiment artifacts with strict provenance;
+- `edges.jsonl` as a minimal graph index;
+- human-vetoed canon deferred until it has a downstream consumer;
+- declarative domain packs, RL first.
+
+## Mapping to slim Structure
 
 | ah-my-openresearch | slim equivalent | Notes |
 |---|---|---|
-| `src/agents/` | `src/agents/` | Same pattern. Slim has 10 agents (orchestrator/librarian/oracle/explorer/fixer/designer/observer/council/councillor/custom); we have 6 (no oracle/explorer/fixer/designer/observer; we add prospector/writer). |
-| `src/skills/` | `src/skills/` | Same shape (dir per skill with SKILL.md). |
-| `src/mcp/` | `src/mcp/` | Same pattern. Slim has 3 MCPs (context7/grep-app/websearch); we have 3 (obsidian/zotero/basic-memory). |
-| `src/config/` | `src/config/` | Same. |
-| `src/cli/` | `src/cli/` | Same pattern. Slim's CLI has install/doctor/skills/config-manager; ours starts with install/doctor. |
-| `src/hooks/` | `src/hooks/` | Slim has 11 hooks; we'll start with 1-2 (pre-write-drafts-only, session-summary). |
-| `src/lab/` | _(none)_ | Our differentiator. |
-| `src/utils/` | `src/utils/` | Standard. |
-| `src/council/` | `src/council/` | Slim has dedicated multi-LLM manager; we defer to Phase 2 (council persona is stubbed). |
-| `src/multiplexer/` | _(omitted)_ | Tmux/zellij; not needed for MVP. |
-| `src/interview/` | _(omitted)_ | Slim-specific interactive setup; not needed. |
-| `src/divoom/` | _(omitted)_ | LED-display hardware; not relevant. |
-| `src/tools/` | _(omitted for now)_ | Custom tools beyond MCP; add when needed. |
-| `src/tui.ts` | _(omitted)_ | TUI mode; not needed for MVP. |
+| `src/agents/` | `src/agents/` | Same factory pattern; `amore` has 6 research personas |
+| `src/skills/` | `src/skills/` | Same markdown skill shape |
+| `src/mcp/` | `src/mcp/` | Same registry idea; different MCPs |
+| `src/config/` | `src/config/` | Same config/schema layer + optional loader |
+| `src/cli/` | `src/cli/` | Starts with `install` and `doctor` |
+| `src/hooks/` | `src/hooks/` | Starts with write-boundary hook |
+| `src/lab/` | none | Main differentiator |
+| `src/utils/` | `src/utils/` | Shared helpers |
+| `src/council/` | `src/council/` | Deferred until council activation |
+| `src/multiplexer/` | omitted | Not needed for MVP |
+| `src/tui.ts` | omitted | Not needed for MVP |

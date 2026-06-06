@@ -1,167 +1,187 @@
 # Roadmap
 
-Phase-by-phase build plan. Every step references real files in this repo.
+Forward plan for `ah-my-openresearch` (alias `amore`).
 
-> **Current state (post-scaffold):** `src/**` is STUBs only — no business logic written. Real content lives in: `package.json`, `tsconfig.json`, `biome.json`, `README.md`, `AGENTS.md`, `codemap.md`, `LICENSE`. Architecture map is in `codemap.md`.
+Canonical product design lives in `design/Product Design.md` (local-only,
+gitignored, D1–D27 closed). This file is the implementation sequence and
+open-decision tracker. `codemap.md` is the dependency map. Past phase
+history lives in [`CHANGELOG.md`](CHANGELOG.md).
 
-> **Canonical design** lives in `design/Product Design.md` (gitignored — local only). All decision IDs below (D1–D11) reference §3 of that doc.
+## Status at a Glance
 
----
-
-## Phase 1 prerequisites (resolved)
-
-| Decision | Status | Notes |
+| Phase | Scope | Status |
 |---|---|---|
-| ✅ D7 Lab + literature stack | Done (3bab394) | Per-project `<project>/lab/`; literature outside, read-only. |
-| ✅ D10 Auto-flag behavior | Done (66e39fb) | Flags go into draft frontmatter; never block. |
-| ✅ D11 Inter-persona file conventions | Done (3bab394) | `lab/{drafts,critique,canon}/` + `log.md`. |
-| ✅ D12 Identifier rule | Done (66e39fb) | Slug from title (drop stopwords, ≤60 chars, collision suffix). See Product Design §7. |
-| ✅ D13 Contradiction threshold | Done | Cosine 0.80; single threshold; pool = canon `{supported, partial}`; embedding `BAAI/bge-small-en-v1.5`; index `title + body` minus code blocks. |
+| 0 | Scaffold | ✅ done |
+| 1 | Config, schema, utilities | ✅ done |
+| 2 | Lab contract (D21–D25) | ✅ done |
+| 3 | MCP + SDK integration | ✅ done |
+| 4a | Plugin caркac | ✅ done |
+| 4b | Real persona prompts | ✅ done |
+| 5 | CLI install + doctor | ✅ done (MVP scope) |
+| 6 | Write-boundary hook | ✅ done |
+| 7 | MVP skills + lit→claim loop | 🟡 P0 skills written; Wave 2 in drafts; real demo on slm_agent pending |
+| 8 | MVP demo + public docs | ⛔ docs/ empty; demo not yet run |
 
-**Phase 1 is now unblocked.** All 5 prerequisites resolved.
+Tests: **127/127 pass** as of 2026-06-06. Typecheck, biome, build all clean.
 
----
+## MVP Success Criteria
 
-## Phase 0 — Scaffold ✅ DONE
+MVP is shipped when one real literature-to-claim-draft loop works on a real
+project, with valid provenance and no out-of-bounds writes.
 
-Commit: `77e4900` (initial) + this commit (gitignore + roadmap).
+Required:
 
-Created:
-- Manifest: `package.json`, `tsconfig.json`, `biome.json`, `bunfig.toml`, `.gitignore`, `LICENSE`
-- Narrative: `README.md`, `AGENTS.md`, `codemap.md`, `ROADMAP.md`
-- `src/` skeleton: agents (6 factories), cli (2 stubs), config (3 files), mcp (3+index), skills (4 P0), index.ts
-- `design/` (local-only, gitignored): `Product Design.md`, `Skill Catalog.md`
+1. **`amore install`**: creates `<project>/lab/` with `README.md`,
+   `SCHEMA.md`, `log.md`, `index.md`, `edges.jsonl`, and `drafts/`. No
+   global config or OpenCode MCP-config mutation by default. Prints optional
+   next-step hints.
+2. **`amore doctor`**: validates local lab layout, draft frontmatter,
+   provenance refs, `edges.jsonl`, broken graph refs, and generated
+   `index.md`. `--repair` regenerates safe layout files and `index.md`.
+3. **Literature → claim-draft loop**: request reaches `orchestrator` /
+   `librarian`; librarian reads outside literature wiki context; claim
+   extraction creates valid `lab/drafts/claim-*.md`; `log.md` gets `draft`
+   / `handoff` entries; `index.md` regenerates; agents write only to
+   allowed surfaces.
+4. **Real demo on `slm_agent`** (or equivalent): one known paper/query
+   produces 2-3 claim drafts with provenance; drafts inspectable in
+   Obsidian; `amore doctor` passes after the run.
 
-Verifiable: `find src -type f` matches `codemap.md` layout.
+Not required for MVP:
 
----
+- `canon/` and promote flow (D18 deferred to Phase 8).
+- Contradiction-check (D8/D10 deferred to Phase 8).
+- Full autonomous prospector/coder/writer workflows.
+- Paper writing, council automation, cheap-to-frontier escalation.
+- Long-running resumable graph execution.
+- npm publish or public GitHub.
+- Full domain pack behavior beyond loading declarative config.
 
-## Phase 1 — Config + Schema 🟢 READY
+## Phase 7 — Remaining Work
 
-Files to fill:
-- `src/config/schema.ts` — extend Zod with `lab.dir`, `literature_wiki.path`, `contradiction.threshold`, real per-persona defaults
-- `src/config/constants.ts` — concrete defaults for new fields
-- `src/utils/paths.ts` (NEW) — path resolution helpers
-- `src/utils/logger.ts` (NEW) — logger
-- `scripts/generate-schema.ts` (NEW) — Zod → `ah-my-openresearch.schema.json`
+P0 skill bodies (Wave 1, MVP loop) are written:
+`intake-dispatch-summary`, `claim-extract`, `wiki-ingest`, `wiki-lint`.
 
-Verifiable: `bun run scripts/generate-schema.ts` produces a valid `ah-my-openresearch.schema.json`.
+Wave 2 prospector skills exist as drafts and need lock-in before they go
+into the persona's `<Skills>` allowlist: `gap-map`, `idea-creator`,
+`novelty-vs-wiki`, `research-refine` (and an `experiment-plan` to be
+written).
 
----
+Wave 3 (`coder` triad) and Wave 4 (`writer` + `council` quartet) skill
+bodies are already written ahead of schedule — see CHANGELOG for the
+skill→source mapping.
 
-## Phase 2 — Agent prompts (parallel with Phase 3)
+Remaining STUB: `contradiction-check` (post-MVP D8).
 
-For each `src/agents/<name>.ts`:
-- Replace STUB prompt with final text derived from `design/Product Design.md` §6 (role, tools, expected I/O, anti-patterns).
-- Add `defaultTier: Tier` per persona, exported from `src/agents/types.ts`.
+Follow-up naming: `wiki-ingest` may be split into `lab-ingest` and a
+future `paper-ingest` before public release (the current name keeps
+causing ambiguity between the literature-wiki side and the lab side).
 
-Verifiable: every persona exports an agent with a non-stub prompt; smoke tests pass.
+## Phase 8 — MVP Demo and Public Docs
 
----
+Files to write in `docs/`:
 
-## Phase 3 — MCP registrations (parallel with Phase 2)
+- `installation.md`
+- `configuration.md`
+- `personas.md`
+- `wiki-contract.md`
+- `lab-contract.md`
+- `skills.md`
 
-Prereq: `bun add @opencode-ai/sdk @opencode-ai/plugin @modelcontextprotocol/sdk`.
+Demo:
 
-For each `src/mcp/<name>.ts`:
-- Fill real manifest (`command`, `args`, `env`) per OpenCode SDK MCP convention.
-- Export `MCP_REGISTRY` from `src/mcp/index.ts`.
+- run `amore install` on `slm_agent` or an equivalent project;
+- run one literature-to-claim-draft loop end-to-end through OpenCode/
+  Claude Code with the plugin loaded;
+- inspect outputs in Obsidian;
+- run `amore doctor`;
+- record remaining gaps and missing setup hints.
 
-Verifiable: a unit test imports `MCP_REGISTRY` and validates structure.
+Public release checklist (after the demo passes):
 
----
+- finalize public README;
+- decide between `amore init <name>` for new-project bootstrap vs current
+  install-into-cwd model;
+- public GitHub;
+- npm publish (with version bumped from 0.0.1 and `VERSION` constant
+  wired from `package.json` at build time);
+- CI/test maturity.
 
-## Phase 4 — Plugin wire-up
+## Post-MVP Sequencing
 
-`src/index.ts`:
-- Implement `@opencode-ai/plugin` interface.
-- On load: read config, register only `ACTIVE_MVP_PERSONAS`, register MCPs from `MCP_REGISTRY`.
+Follows D27 order. Skill source attribution is in `design/Skill Catalog.md`.
 
-`package.json scripts.build`:
-- Replace TODO with real `bun build src/index.ts src/cli/index.ts --outdir dist`.
+1. **Deepen prospector workflows** — lock Wave 2 skill bodies
+   (`gap-map`, `idea-creator`, `novelty-vs-wiki`, `research-refine`,
+   `experiment-plan`); start producing `idea-*.md` and `exp-*.md` drafts
+   from the prospector persona end-to-end.
+2. **Experiment loop (Wave 3 wire-up)** — the three skills
+   (`run-experiment`, `monitor-experiment`, `analyze-results`) are written;
+   the work is wiring them into a real `coder` flow on a project that
+   actually runs jobs. Backends: MVP = local + ssh only; Vast.ai / Modal
+   deferred. Result → claim handoff: librarian invokes `claim-extract`
+   against the finalized exp draft using the candidate hooks
+   `analyze-results` returns.
+3. **Canon / approval / contradiction** — add `lab/canon/`, add
+   `promote`/`invalidate` actions, activate `contradiction-check` against
+   `basic-memory`.
+4. **Writer / council (Wave 4 wire-up)** — the four skills
+   (`council-session`, `paper-plan`, `paper-figure`, `paper-audit`) are
+   written. Remaining: council-session fan-out runtime; default councillor
+   roster; wire the Wave-3 → Wave-4 chain
+   (`analyze-results.result_files` → `paper-plan` matrix →
+   `paper-figure` plots → writer drafts `.tex` and runs `latexmk` →
+   `paper-audit` → `council-session` pre-submission review).
+5. **Public release** — see Phase 8 checklist.
 
-Verifiable: `bun run build` produces `dist/`; OpenCode loads the plugin without error.
+## Open Decisions
 
----
+No design decision currently blocks Phase 7/8 implementation.
 
-## Phase 5 — CLI + install
+**Drilldowns merged from `TODOs.md`** (2026-06-06):
 
-- `src/cli/index.ts` — argument parsing (commands: `install`, `doctor`).
-- `src/cli/install.ts` — implement the function: create user config from defaults, scaffold vault (depends on Phase 6), register MCPs in `~/.config/opencode/mcp.json`.
-- `src/cli/doctor.ts` (NEW) — checks: vault dirs exist, MCPs reachable, schema valid.
+- **`paper-search` provider policy** — prefer API-first providers
+  (arXiv, Semantic Scholar, OpenAlex) with Browserbase only as fallback
+  for sites without usable APIs, dynamic conference pages, login/session
+  flows, or PDF retrieval. Zotero excluded by D3.
+- **Wiki Contract R1–R10 content** — exact frontmatter fields, log entry
+  format examples, naming regexes, against the real `~/RL-Wiki/CLAUDE.md`
+  + templates. Mechanism is closed (D19); detailed rule content is its
+  own design round and will be triggered by the real Phase 7 demo.
+- **Host persona invocation syntax** — exact CLI sentence for invoking
+  orchestrator/librarian/etc. in OpenCode/Claude Code/Codex. Verified
+  in Phase 4a (plugin registers personas), but the daily-use call shape
+  needs documentation in `docs/personas.md`. Optional workflow CLI
+  wrappers (`amore ingest …`, `amore extract …`) are deferred — not part
+  of the MVP interaction model.
+- **Council default roster** — when no user config: how many councillors,
+  which model mix, what cost cap. Persona prompt and
+  `buildCouncillorPrompt()` contract are done (Phase 4b); only the
+  default configuration is open.
+- **`council-session` fan-out runtime** — the skill body is written
+  (Wave 4); the work is implementing protocol-not-transport (OpenCode
+  parallel → Claude Code Task → external CLI → sequential fallback).
+  Separate from the persona prompt.
+- **Per-persona skill allowlists** — to be threaded through once Wave 2
+  bodies are locked and any P1/P2 skill is wired.
+- **Optional ARIS wrappers** — only add if a concrete user need emerges
+  after MVP demo, per D17. Each must be explicit and allowlisted.
+- **Contradiction-check calibration** (post-MVP) — embedding model,
+  threshold, candidate pool, reviewed edge creation. Defaults locked by
+  D13 (cosine 0.80, `BAAI/bge-small-en-v1.5`); calibration against real
+  data deferred until canon exists.
+- **RL domain pack** — taxonomy, venues, domain fields, templates,
+  optional skills/personas. D26 closes the runtime mechanism; pack
+  contents are their own design round.
+- **`amore init <name>`** — current install applies to existing projects
+  only. Decide before public release whether to add a new-project
+  bootstrap command.
 
-Verifiable: `bunx ah-my-openresearch install` (or `amore install` once installed) on a clean machine produces a user config + vault scaffold.
+## Conventions
 
----
-
-## Phase 6 — Lab contract (our differentiator)
-
-In `src/lab/`:
-- `layout.ts` (NEW) — creates `<lab>/drafts/` + `edges.jsonl` + root files (`README.md`, `SCHEMA.md`, `log.md`, `index.md`). Canon/critique deferred to Phase 8 (D18).
-- `claim-schema.ts` (NEW) — Zod for claim frontmatter, matching `design/Product Design.md` §7
-- `id-generator.ts` (NEW) — stable claim/exp/idea ID generator (depends on Claim ID rule decision)
-- `edges.ts` (NEW) — append/query helpers for `edges.jsonl`
-- `index.ts` (NEW)
-- `codemap.md` (NEW)
-
-Verifiable: `src/lab/layout.ts` invoked on a temp dir creates exactly the expected lab structure.
-
----
-
-## Phase 7 — Hooks (minimum 1)
-
-- `src/hooks/pre-write-drafts-only/{index.ts, SKILL.md}` — OpenCode hook, refuses writes outside `<lab>/drafts/`. (Canon hook to be added in Phase 8.)
-- `src/hooks/index.ts` — registers hooks at plugin load.
-
-Verifiable: a test issues a write outside `lab/drafts/` → hook rejects.
-
----
-
-## Phase 8 — P0 skills (real loop)
-
-Replace STUB bodies in:
-- `src/skills/intake-dispatch-summary/SKILL.md` — deterministic handoff format spec
-- `src/skills/wiki-ingest/SKILL.md` — depends on `src/lab/layout.ts` + obsidian MCP
-- `src/skills/claim-extract/SKILL.md` — strict JSON extraction per `src/lab/claim-schema.ts`
-
-Verifiable: `@librarian ingest arxiv:2501.12599` produces a draft claim in `<project>/lab/drafts/`.
-
----
-
-## Phase 9 — Contradiction-check (D8, main buildable artifact)
-
-- `scripts/contradiction-check.py` (NEW, ~150 lines) — Python helper on `basicmachines-co/basic-memory` (fastembed + sqlite-vec).
-- `src/skills/contradiction-check/SKILL.md` — replace STUB; calls the Python helper.
-- Wire-up in `src/skills/wiki-ingest/` — auto-invoke `contradiction-check` on every ingest, write `potential_contradicts` to draft frontmatter.
-
-Verifiable: ingesting a claim with a known contradiction → flag appears in draft frontmatter.
-
----
-
-## Phase 10 — User docs
-
-Fill `docs/`:
-- `installation.md` · `configuration.md` · `personas.md` · `wiki-contract.md` · `skills.md`
-
-Verifiable: a new user can install and run by following docs alone.
-
----
-
-## Phase 11+ — Phase 2 features (deferred)
-
-- Activate `prospector` / `coder` / `writer` in `ACTIVE_MVP_PERSONAS`
-- `src/council/council-manager.ts` (NEW) — multi-LLM session orchestration
-- Domain pack runtime loading: `src/config/domain-loader.ts` + `config/domains/<name>/`
-- Additional hooks (session-summary, phase-reminder)
-- LangGraph migration (if §2 sidebar triggers fire)
-- Multiplexer, TUI mode, more presets, i18n READMEs, CHANGELOG, contributors meta
-
----
-
-## Open decisions left to resolve (also Tier 2/3)
-
-| Tier | Decisions |
-|---|---|
-| 🟥 Tier 1 (blocks Phase 1) | D11, §7 layout, Claim ID rule, Contradiction threshold |
-| 🟧 Tier 2 (before real implementation) | D7 (approval surface), §5 draft path, ARIS skill consumption convention, persona config format, oh-my-openagent integration mode, Council default config, MCP install recipe |
-| 🟨 Tier 3 (before public release) | D4 (name), D5 (distribution), §8 domain pack runtime, demo success metrics, Phase 11 sequencing |
+- Each commit should reference a D-ID from `design/Product Design.md`
+  when it implements or changes a closed decision.
+- Phase X's "Done" entry in `CHANGELOG.md` carries the verification
+  criteria that passed; do not duplicate them here.
+- Skill source attribution (ARIS / claude-octopus / academic-research-skills
+  / GAP) lives in `design/Skill Catalog.md`, not here.
