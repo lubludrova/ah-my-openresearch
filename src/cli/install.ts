@@ -1,19 +1,47 @@
-// amore `install` command (STUB)
-//
-// Will:
-//   1. Create ~/.config/opencode/amore.json from defaults (D16 schema in src/config/schema.ts).
-//   2. Scaffold <project>/lab/ layout: drafts/ + README.md, SCHEMA.md, log.md,
-//      index.md, edges.jsonl (D7). Canon/critique deferred to Phase 8 (D18).
-//   3. Register MCPs (obsidian-mcp-server, zotero-mcp, basic-memory) in
-//      ~/.config/opencode/mcp.json — additive merge, install-hints printed (D15).
-//   4. Symlink ARIS skills from ~/Tools/aris/skills/skills-codex/<name>/ → OpenCode
-//      skills dir (additive; mirrors ARIS's default install pattern; --reconcile
-//      flag for repair) — D17.
-//
-// Phase 1 blockers all resolved (D7/D10/D11/D12/D13).
-// Ready to implement: create user config from src/config/schema.ts defaults,
-// scaffold <project>/lab/ via src/lab/layout.ts, register MCPs.
+import { relative } from 'node:path';
+import { createLab, validateLabLayout } from '../lab';
+import { logger } from '../utils';
 
-export async function install(): Promise<void> {
-  throw new Error('install command not yet implemented');
+export interface InstallOptions {
+  cwd?: string;
+  labDir?: string;
+  reconcile?: boolean;
+}
+
+export async function install(options: InstallOptions = {}): Promise<void> {
+  const cwd = options.cwd ?? process.cwd();
+  const labDir = await createLab(cwd, {
+    labDir: options.labDir,
+    reconcile: options.reconcile,
+  });
+  const validation = await validateLabLayout(cwd, {
+    labDir: options.labDir,
+  });
+  const displayPath = relative(cwd, labDir) || '.';
+
+  if (!validation.ok) {
+    logger.error(
+      `Lab scaffold is incomplete at ${displayPath}. Missing: ${validation.missing.join(', ')}`,
+    );
+    process.exitCode = 1;
+    return;
+  }
+
+  logger.success(`Created/validated local research lab at ${displayPath}`);
+  logger.info(
+    'Created local files: README.md, SCHEMA.md, log.md, index.md, edges.jsonl, drafts/',
+  );
+
+  if (options.reconcile) {
+    logger.info(
+      'Reconcile mode writes README.md.new / SCHEMA.md.new when local docs differ.',
+    );
+  }
+
+  logger.info(
+    'Global config was not created. OpenCode MCP config was not modified.',
+  );
+  logger.info(
+    'Optional later setup: configure Obsidian/Zotero/Basic Memory when plugin runtime is wired.',
+  );
 }
