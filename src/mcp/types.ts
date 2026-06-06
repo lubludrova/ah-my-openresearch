@@ -1,23 +1,36 @@
-// MCP registration types — see design/Product Design.md §5 'MCP registration & install (D15)'.
+// MCP types — see design/Product Design.md §5 'MCP registration & install (D15)'.
+//
+// Shape mirrors alvinunreal/oh-my-opencode-slim/src/mcp/types.ts so the
+// values returned by createBuiltinMcps() can be returned directly under the
+// `mcp` key of the plugin export (consumed by OpenCode without translation).
+//
+// The amore-specific McpMeta lives next to it: it carries install hints and
+// required-level for our own CLI (`amore install` / `amore doctor`), and is
+// NOT part of the OpenCode contract.
+
+export type RemoteMcpConfig = {
+  type: 'remote';
+  url: string;
+  headers?: Record<string, string>;
+  oauth?: false;
+};
+
+export type LocalMcpConfig = {
+  type: 'local';
+  command: string[];
+  environment?: Record<string, string>;
+};
+
+export type McpConfig = RemoteMcpConfig | LocalMcpConfig;
+
+// ────────────────────────────────────────────────────────────────────
+// amore-only metadata (install hints, required-level). Not sent to OpenCode.
+// ────────────────────────────────────────────────────────────────────
 
 export type McpRequiredLevel = 'required' | 'optional' | 'phase8+';
 
-export interface McpUserConfig {
-  // Per-MCP user-supplied config. Keys vary by MCP; values are strings (env-var style).
-  [key: string]: string | undefined;
-}
-
-export interface McpManifestEntry {
-  // Shape written into ~/.config/opencode/mcp.json under this MCP's key (or registered via SDK API).
-  command: string;
-  args: string[];
-  env?: Record<string, string>;
-}
-
-export interface McpDefinition {
-  name: string;
+export interface McpMeta {
   upstream: string;
   required: McpRequiredLevel;
   install_hint: string;
-  manifest_template: (userConfig: McpUserConfig) => McpManifestEntry;
 }

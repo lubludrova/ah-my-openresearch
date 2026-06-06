@@ -1,22 +1,25 @@
 // MCP registration: basic-memory
 // Upstream: https://github.com/basicmachines-co/basic-memory
-// Purpose: local semantic memory (fastembed + sqlite-vec); foundation for D8 contradiction-check.
-// STUB: exact command/env to be confirmed against upstream docs in Phase 3.
+// Purpose: local semantic memory (fastembed + sqlite-vec) — foundation for
+// post-MVP D8/D13 contradiction-check. Not used in MVP.
+//
+// Verified against upstream README on 2026-06-03 (Phase 3).
+// Storage projects are managed via the `basic-memory project add <name> <path>`
+// CLI, not via env vars — there is no BASIC_MEMORY_STORAGE env recipe.
 
-import type { McpDefinition } from './types';
+import type { LocalMcpConfig, McpMeta } from './types';
 
-export const basicMemoryMcp: McpDefinition = {
-  name: 'basic-memory',
+export const basicMemory: LocalMcpConfig = {
+  type: 'local',
+  command: ['uvx', 'basic-memory', 'mcp'],
+};
+
+export const basicMemoryMeta: McpMeta = {
   upstream: 'https://github.com/basicmachines-co/basic-memory',
-  required: 'phase8+', // required only when D8 contradiction-check activates
+  required: 'phase8+',
   install_hint:
-    'uvx basic-memory --help (uvx fetches on demand) or pip install basic-memory',
-  manifest_template: (cfg) => ({
-    command: 'uvx',
-    args: ['basic-memory', 'mcp', 'serve'],
-    env: {
-      // TODO Phase 3: confirm exact env-var names against upstream README.
-      BASIC_MEMORY_STORAGE: cfg.storage_path ?? '~/.local/share/basic-memory',
-    },
-  }),
+    'Recommended: `uv tool install basic-memory` (persistent) or rely on uvx ' +
+    'for on-demand resolution. Configure storage projects via the CLI: ' +
+    '`basic-memory project add <name> <path>`. Default project lives in ' +
+    '~/basic-memory. Activated only when post-MVP contradiction-check turns on.',
 };
