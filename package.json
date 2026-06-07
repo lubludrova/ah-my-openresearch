@@ -1,6 +1,6 @@
 {
   "name": "ah-my-openresearch",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Research laboratory with personas, skills, document control, and outside literature wiki for OpenCode/Codex/Claude Code.",
   "type": "module",
   "main": "dist/index.js",

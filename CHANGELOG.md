@@ -11,6 +11,29 @@ Phases land in the order driven by `codemap.md`'s dependency cascade. Detailed
 implementation narrative lives in `git log`; this file captures only the
 durable outcome.
 
+## 0.1.1 — 2026-06-07 — Disable OpenCode default agents
+
+The amore plugin now disables OpenCode's built-in `build` and `plan` agent
+modes by default. They were showing up in the host-CLI UI alongside the six
+amore personas (orchestrator, librarian, prospector, coder, council, writer)
+and made the agent picker confusing for a research-only workflow.
+
+- `src/index.ts`: the `config` hook now writes `{disable: true}` to
+  `opencodeConfig.agent.build` and `opencodeConfig.agent.plan` when the user
+  has not already supplied an entry for them. User-supplied agent configs
+  always win, so re-enabling either is a one-liner in the project's
+  `opencode.json`:
+
+  ```json
+  "agent": { "build": {} }
+  ```
+
+- `src/index.test.ts` (new): 7 end-to-end smoke tests against the plugin's
+  `config` hook — six personas registered, defaults disabled, user override
+  preserved, MCPs registered, persona shape correct.
+
+Verifiable: 158 tests pass (was 151), typecheck/biome/build clean.
+
 ## 0.1.0 — 2026-06-07 — First npm release
 
 First public release on the npm registry. The shape of `amore` is locked in;

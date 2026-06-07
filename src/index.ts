@@ -15,19 +15,37 @@ import { loadAmoreConfig } from './config';
 import { createPreWriteDraftsOnlyHook } from './hooks';
 import { createBuiltinMcps } from './mcp';
 
+// OpenCode ships two default general-purpose agent modes that amore
+// considers redundant in a research-lab project: `build` (write-everything
+// generalist) and `plan` (planning-only). amore is research-focused; its six
+// personas (orchestrator, librarian, prospector, coder, council, writer)
+// cover the relevant ground. We disable both by default. A user can re-enable
+// either by setting `agent.build = {}` or `agent.plan = {}` in their
+// project's opencode.json — user-supplied entries always win below.
+const DISABLED_DEFAULT_AGENTS = ['build', 'plan'] as const;
+
 const amorePlugin: Plugin = async (input) => {
   const projectRoot = input.directory;
   const userConfig = loadAmoreConfig(projectRoot);
 
   return {
     config: async (opencodeConfig) => {
+      opencodeConfig.agent ??= {};
+
+      // Disable OpenCode's default generalist agents when the user has not
+      // touched them. If they have, leave their entry intact.
+      for (const name of DISABLED_DEFAULT_AGENTS) {
+        if (!opencodeConfig.agent[name]) {
+          opencodeConfig.agent[name] = { disable: true };
+        }
+      }
+
       // Personas: plugin defaults first, user opencode.json overrides win.
       // User-supplied wiki path from amore config wins over the hard-coded
       // DEFAULT_LITERATURE_WIKI fallback.
       const agents = createAllAgents({
         wikiPath: userConfig?.literature_wiki_path,
       });
-      opencodeConfig.agent ??= {};
       for (const [name, agent] of Object.entries(agents)) {
         const existing = opencodeConfig.agent[name];
         opencodeConfig.agent[name] = existing
