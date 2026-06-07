@@ -1,37 +1,77 @@
 # Defense-in-depth on top of the `files` whitelist in package.json.
-# The whitelist already excludes everything outside dist/, src/skills/,
-# docs/, plus the named files. This list filters accidental noise that
-# could land *inside* those allowed directories.
+#
+# `files` currently allows only:
+#   dist/, src/skills/, docs/, ah-my-openresearch.schema.json,
+#   README.md, LICENSE (and package.json itself).
+#
+# This file re-excludes everything else explicitly, so the tarball stays
+# clean even if the `files` whitelist is ever loosened or removed.
 
-# OS / editor noise
+# ── Dev-only Markdown at repo root ──
+CHANGELOG.md
+ROADMAP.md
+codemap.md
+AGENTS.md
+TODOs.md
+SECURITY.md
+CONTRIBUTING.md
+
+# ── Local design (also gitignored) ──
+design/
+
+# ── Source TypeScript — only src/skills/*.md ships ──
+src/agents/
+src/cli/
+src/config/
+src/hooks/
+src/lab/
+src/mcp/
+src/utils/
+src/index.ts
+
+# ── Tests anywhere in the tree ──
+*.test.ts
+*.test.js
+*.test.d.ts
+*.spec.ts
+*.spec.js
+*.spec.d.ts
+__tests__/
+__mocks__/
+coverage/
+.nyc_output/
+
+# ── Build / project config ──
+bun.lock
+bunfig.toml
+tsconfig.json
+tsconfig.build.json
+biome.json
+scripts/
+
+# ── Git / CI / IDE ──
+.git/
+.github/
+.gitignore
+.gitattributes
+.vscode/
+.idea/
+*.code-workspace
+
+# ── Dependencies ──
+node_modules/
+
+# ── OS / editor noise ──
 .DS_Store
 Thumbs.db
 *.swp
+*.swo
 *.bak
 *.tmp
 *.log
 *.backup-*
 
-# Local-only design notes (also gitignored, but belt-and-suspenders)
-design/
-
-# Source files that should never reach the tarball
-*.test.ts
-*.test.js
-*.test.d.ts
-*.spec.ts
-*.spec.d.ts
-__tests__/
-
-# Local dev state
-.git/
-.github/
-.vscode/
-.idea/
-node_modules/
-coverage/
-.nyc_output/
-
-# Editor temp / scratch
+# ── Editor scratch / draft notes anywhere ──
 **/scratch/
 **/.scratch/
+**/draft-*.md
