@@ -335,6 +335,25 @@ describe('bootstrapProjectConfig — literature wiki resolution', () => {
     expect(existsSync(join(cwd, 'llm-wiki', 'raw'))).toBe(true);
   });
 
+  test('interactive Cyrillic с creates a new starter wiki', async () => {
+    const cwd = await tempProject();
+    const home = await tempHome('RL-Wiki');
+    let calls = 0;
+    const result = await bootstrapProjectConfig({
+      cwd,
+      homeDir: home,
+      interactive: true,
+      prompt: async () => {
+        calls += 1;
+        return calls === 1 ? '\u0441' : ''; // Cyrillic small es, not Latin c.
+      },
+    });
+    expect(calls).toBe(2);
+    expect(result.wikiKind).toBe('create');
+    expect(result.resolvedWikiPath).toBe('./llm-wiki');
+    expect(existsSync(join(cwd, 'llm-wiki', 'RULES.md'))).toBe(true);
+  });
+
   test('interactive [c] honors a custom wiki name', async () => {
     const cwd = await tempProject();
     const home = await tempHome();

@@ -208,6 +208,31 @@ function warnExplicitPath(
   }
 }
 
+function parseWikiMenuChoice(choice: string): WikiChoiceKind {
+  const normalized = choice.toLowerCase();
+
+  if (
+    normalized === '' ||
+    normalized === '3' ||
+    normalized === 's' ||
+    normalized.startsWith('s') ||
+    normalized === '\u044b'
+  ) {
+    return 'skip';
+  }
+
+  if (
+    normalized === '2' ||
+    normalized === 'c' ||
+    normalized.startsWith('c') ||
+    normalized === '\u0441'
+  ) {
+    return 'create';
+  }
+
+  return 'use';
+}
+
 /**
  * Creates a starter wiki on disk: `<dirAbsolute>/RULES.md`, `wiki/`, `raw/`.
  * Idempotent: if any file already exists it is left alone.
@@ -285,9 +310,9 @@ export async function resolveLiteratureWiki(
   const choice = await prompt(
     '  [u] use an existing wiki        — I will ask for the path\n  [c] create one in this project  — at ./llm-wiki/\n  [s] skip                         — no literature wiki\n\n  > ',
   );
-  const normalized = choice.toLowerCase();
+  const menuChoice = parseWikiMenuChoice(choice);
 
-  if (normalized === '' || normalized === 's' || normalized.startsWith('s')) {
+  if (menuChoice === 'skip') {
     return {
       kind: 'skip',
       resolvedPath: null,
@@ -297,7 +322,7 @@ export async function resolveLiteratureWiki(
     };
   }
 
-  if (normalized === 'c' || normalized.startsWith('c')) {
+  if (menuChoice === 'create') {
     const nameInput = await prompt(`  Name [${DEFAULT_WIKI_NAME}]: > `);
     const name = nameInput.trim() || DEFAULT_WIKI_NAME;
     const dirAbsolute = resolve(cwd, name);
