@@ -1,8 +1,7 @@
 {
   "name": "ah-my-openresearch",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "Research laboratory with personas, skills, document control, and outside literature wiki for OpenCode/Codex/Claude Code.",
-  "private": true,
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -10,9 +9,21 @@
     "amore": "./dist/cli/index.js",
     "ah-my-openresearch": "./dist/cli/index.js"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lubludrova/ah-my-openresearch.git"
+  },
+  "homepage": "https://github.com/lubludrova/ah-my-openresearch#readme",
+  "bugs": {
+    "url": "https://github.com/lubludrova/ah-my-openresearch/issues"
+  },
+  "engines": {
+    "node": ">=18"
+  },
   "files": [
     "dist",
     "src/skills",
+    "docs",
     "ah-my-openresearch.schema.json",
     "README.md",
     "LICENSE"

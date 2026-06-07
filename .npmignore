@@ -1,0 +1,37 @@
+# Defense-in-depth on top of the `files` whitelist in package.json.
+# The whitelist already excludes everything outside dist/, src/skills/,
+# docs/, plus the named files. This list filters accidental noise that
+# could land *inside* those allowed directories.
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+*.swp
+*.bak
+*.tmp
+*.log
+*.backup-*
+
+# Local-only design notes (also gitignored, but belt-and-suspenders)
+design/
+
+# Source files that should never reach the tarball
+*.test.ts
+*.test.js
+*.test.d.ts
+*.spec.ts
+*.spec.d.ts
+__tests__/
+
+# Local dev state
+.git/
+.github/
+.vscode/
+.idea/
+node_modules/
+coverage/
+.nyc_output/
+
+# Editor temp / scratch
+**/scratch/
+**/.scratch/

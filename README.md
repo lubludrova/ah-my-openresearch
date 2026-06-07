@@ -1,79 +1,127 @@
 # ah-my-openresearch  ·  `amore`
 
-> Research analogue of `oh-my-openagent`: research personas + skills + per-project lab + outside literature wiki for OpenCode/Codex/Claude Code.
+> Research personas + skills + per-project lab + outside literature wiki for
+> OpenCode / Codex CLI / Claude Code. Built so research context **compounds
+> across sessions** instead of evaporating.
 >
-> The name plays on `oh-my-openagent`: *ah-my-o...* → **amore** (Italian for *love*). Research with care.
-
-**Status:** pre-MVP. The plugin caркас, all six persona prompts, the local
-lab contract, the `pre-write-drafts-only` hook, and the `amore install` /
-`amore doctor` CLI are implemented and exercised by 127 tests. Wave 1
-literature skills (`intake-dispatch-summary`, `claim-extract`, `wiki-ingest`,
-`wiki-lint`) plus Wave 3/4 (`coder` triad and `writer` + `council` quartet)
-are written. Wave 2 prospector skills exist as drafts. Remaining MVP work
-is an end-to-end demo on a real project and the public docs in `docs/`.
-See [`ROADMAP.md`](ROADMAP.md) for forward plan and
-[`CHANGELOG.md`](CHANGELOG.md) for what shipped per phase.
-
-Canonical design lives in `design/` — **gitignored, local-only** (private design notes). If you cloned the repo, that folder is empty. The local canonical files are `design/Product Design.md` and `design/Skill Catalog.md`.
+> The name plays on `oh-my-openagent`: *ah-my-o...* → **amore** (Italian for
+> *love*). Research, with care.
 
 ## Quickstart
 
-Local development:
+```bash
+cd ~/dev/my-new-project
+bunx ah-my-openresearch install
+```
+
+That single command scaffolds a per-project research lab, points the
+librarian at your literature wiki, and (if you have Obsidian's Local REST
+API plugin running) wires it up as an MCP. See
+[`docs/installation.md`](docs/installation.md) for prerequisites and
+configuration details.
 
 ```bash
-bun install
-bun run build
-node dist/cli/index.js install
-node dist/cli/index.js doctor
+amore install --help        # all flags
+amore doctor                # validate the lab contract
 ```
 
-The package is not published yet. After publish, the intended command shape is
-`bunx ah-my-openresearch install` or `amore install` after global/package
-installation.
+## What you get
 
-## What this is
+**Six research personas** loaded as OpenCode subagents the moment your host
+CLI starts in the project:
 
-A focused OpenCode plugin that ships:
+| Persona | Role |
+|---|---|
+| `orchestrator` | Intake, routing, handoff summaries |
+| `librarian` | Reads/writes your literature wiki, extracts claims with provenance |
+| `prospector` | Ideation, novelty checks, experiment planning |
+| `coder` | Implementation, run, monitor, finalize |
+| `council` | Multi-LLM critique with deterministic verdict |
+| `writer` | Paper plan, figure generation, claim/citation audits |
 
-- **6 research personas** (orchestrator, librarian, prospector, coder, council, writer) — each a `src/agents/<name>.ts` factory.
-- **Skill bundles** in `src/skills/<name>/SKILL.md` — curated `amore` skills inspired by proven ARIS patterns, with attribution where adapted.
-- **MCP registrations** for Obsidian (`cyanheads/obsidian-mcp-server`), Zotero (`54yyyu/zotero-mcp`), and local semantic memory (`basicmachines-co/basic-memory`).
-- **CLI** with admin/setup commands: `install` scaffolds the local lab;
-  `doctor` validates the local lab contract and can repair safe generated
-  files. Research workflows run through personas in the host CLI, not through
-  MVP workflow CLI commands.
-- **Per-project lab**: claim-level schema with provenance. Lives in `<project>/lab/drafts/`, separate from outside literature wiki. Canon/promote mechanic deferred to Phase 8.
-- **Domain extension layer** (RL pack will be the first).
+**Per-project research lab** at `<project>/lab/` — five root files plus
+`drafts/` for `claim-*.md`, `idea-*.md`, `exp-*.md`. Every artifact carries
+a typed frontmatter (`status`, `confidence`, `provenance`,
+`supports`/`contradicts`/`tested_by`) and links into a minimal
+`edges.jsonl` graph. `amore doctor` validates the layout, the schema, and
+broken cross-references at any time.
 
-## Project layout
+**Two-tier knowledge architecture**:
 
-```text
-amore/
-├── design/                # canonical product design (local-only, gitignored)
-│   ├── Product Design.md
-│   └── Skill Catalog.md
-├── docs/                  # user-facing docs (TBD)
-├── src/
-│   ├── index.ts           # plugin entry
-│   ├── agents/            # 6 persona factories
-│   ├── skills/            # bundled SKILL.md files
-│   ├── mcp/               # MCP server registrations
-│   ├── config/            # Zod schema + loader
-│   ├── cli/               # install / doctor / etc.
-│   ├── hooks/             # OpenCode lifecycle hooks
-│   ├── lab/               # per-project lab contract (drafts/ + log/index/edges; canon deferred to Phase 8)
-│   └── utils/             # shared helpers
-├── scripts/               # generate-schema, verify, etc.
-├── package.json
-├── tsconfig.json
-├── biome.json
-├── codemap.md             # architecture map
-└── AGENTS.md              # guidelines for AI working on this repo
+- **Outside literature wiki** (e.g. `~/RL-Wiki`) — cross-project paper
+  notes, concept pages, MoCs. The librarian reads it under the wiki's own
+  contract (`<wiki>/CLAUDE.md` or `AGENTS.md`).
+- **Per-project lab** (`<project>/lab/`) — atomic claims with provenance,
+  ideas with target gaps, experiments with plan / run / results. Grows with
+  the project, never bleeds into the literature wiki.
+
+**Curated skill bundles** (17 markdown skills) covering literature
+ingestion, claim extraction, ideation, experiment lifecycle, multi-LLM
+council review, and paper-audit workflows. Inspired by proven patterns
+from ARIS, claude-octopus, and academic-research-skills; sources cited per
+skill in `design/Skill Catalog.md`.
+
+**Write boundary** — a `tool.execute.before` hook stops agents from writing
+outside `<project>/lab/drafts/` (plus appending to `log.md` / `edges.jsonl`
+and regenerating `index.md`). Future canon/promote machinery slots in here.
+
+## Concepts
+
+- **Claim with provenance.** Not summaries — every claim cites the wiki
+  page or experiment it came from, plus a confidence level (`low`/`medium`/
+  `high`). Re-readable a year later.
+- **Idea → experiment → claim cycle.** Ideas declare `target_gaps` and
+  `hypothesis`. Experiments link back via `idea_refs` and `tests`. After
+  the run, claims gain `tested_by` and the graph closes.
+- **Strict edge directions.** `contradicts` requires `claim → claim`,
+  `addresses_gap` requires `idea → claim`, etc. Wrong direction → doctor
+  fails the validation.
+- **Wiki contract.** Librarian reads `<wiki>/CLAUDE.md` (or `AGENTS.md`)
+  at session start; the wiki's own conventions (naming, frontmatter, log
+  format) win.
+
+## Configuration
+
+`amore install` writes a project-level `opencode.json` that declares the
+plugin. Provider, model, and global MCPs continue to come from
+`~/.config/opencode/opencode.json`. The two files compose at load time.
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "plugin": ["ah-my-openresearch"],
+  "instructions": ["AGENTS.md"]
+}
 ```
+
+If your literature wiki has Obsidian's Local REST API plugin installed,
+amore can auto-wire its MCP entry. See
+[`docs/installation.md`](docs/installation.md#setting-up-the-obsidian-local-rest-api-plugin).
+
+## Status
+
+Pre-v1, post-MVP. Core contract, personas, skills, CLI, and write
+boundary are all shipped and exercised by ~150 tests.
+
+- **Active:** literature → claim draft loop, idea + experiment drafts,
+  edge graph, doctor validation.
+- **In progress:** Wave 2 prospector skills exist as drafts pending
+  lock-in (`gap-map`, `idea-creator`, `novelty-vs-wiki`,
+  `research-refine`).
+- **Post-MVP (planned):** `canon/` promote workflow, contradiction-check
+  on local semantic memory, RL domain pack.
+
+For the forward plan see [`ROADMAP.md`](ROADMAP.md); for what shipped per
+phase see [`CHANGELOG.md`](CHANGELOG.md). Canonical product decisions
+(D1–D27) live in `design/Product Design.md` (gitignored).
 
 ## Pattern source
 
-Architecture follows [`alvinunreal/oh-my-opencode-slim`](https://github.com/alvinunreal/oh-my-opencode-slim) (focused OpenCode plugin, Bun + TS, MIT). Our differentiators on top: Obsidian vault contract, claim-level schema with provenance, domain-extension layer, contradiction-check.
+Architecture follows
+[`alvinunreal/oh-my-opencode-slim`](https://github.com/alvinunreal/oh-my-opencode-slim)
+(focused OpenCode plugin, Bun + TS, MIT). Differentiators: project-local
+lab contract, two-tier knowledge architecture, claim-level provenance,
+strict edge schema, declarative domain packs (RL first).
 
 ## License
 

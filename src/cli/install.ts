@@ -9,6 +9,12 @@ export interface InstallOptions {
   reconcile?: boolean;
   /** When false, skip the lab/config.json + opencode.json bootstrap step. */
   bootstrap?: boolean;
+  /** Explicit literature wiki path. */
+  literatureWiki?: string;
+  /** Opt out of literature_wiki_path. */
+  noWiki?: boolean;
+  /** Opt-in to wiring Obsidian MCP into opencode.json (needed in non-TTY). */
+  withObsidianMcp?: boolean;
 }
 
 export async function install(options: InstallOptions = {}): Promise<void> {
@@ -42,20 +48,31 @@ export async function install(options: InstallOptions = {}): Promise<void> {
   }
 
   if (options.bootstrap !== false) {
-    const result = bootstrapProjectConfig({
+    const result = await bootstrapProjectConfig({
       cwd,
       labDir: options.labDir,
+      literatureWiki: options.literatureWiki,
+      noWiki: options.noWiki,
+      withObsidianMcp: options.withObsidianMcp,
     });
     if (result.labConfig) {
-      const message = result.detectedWikiPath
-        ? `Wrote ${relative(cwd, result.labConfig) || result.labConfig} (literature_wiki_path = ${result.detectedWikiPath}).`
-        : `Wrote ${relative(cwd, result.labConfig) || result.labConfig} (no wiki auto-detected — set literature_wiki_path manually).`;
-      logger.info(message);
+      const wikiPart = result.resolvedWikiPath
+        ? `literature_wiki_path = ${result.resolvedWikiPath}`
+        : 'no literature_wiki_path set';
+      logger.info(
+        `Wrote ${relative(cwd, result.labConfig) || result.labConfig} (${wikiPart}).`,
+      );
     }
     if (result.opencodeConfig) {
+      const mcpPart = result.obsidianMcpWired
+        ? ' with mcp.obsidian wired from your Local REST API plugin'
+        : '';
       logger.info(
-        `Wrote ${relative(cwd, result.opencodeConfig) || result.opencodeConfig} (plugin: ["ah-my-openresearch"]). Composes with ~/.config/opencode/opencode.json.`,
+        `Wrote ${relative(cwd, result.opencodeConfig) || result.opencodeConfig} (plugin: ["ah-my-openresearch"]${mcpPart}). Composes with ~/.config/opencode/opencode.json.`,
       );
+    }
+    for (const warning of result.warnings) {
+      logger.warn(warning);
     }
     if (!result.labConfig && !result.opencodeConfig) {
       logger.info(

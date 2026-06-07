@@ -11,6 +11,40 @@ Phases land in the order driven by `codemap.md`'s dependency cascade. Detailed
 implementation narrative lives in `git log`; this file captures only the
 durable outcome.
 
+## 0.1.0 — 2026-06-07 — First npm release
+
+First public release on the npm registry. The shape of `amore` is locked in;
+breaking changes from here roll a minor or major bump.
+
+Highlights since the pre-publish state:
+
+- **First-time install UX.** `amore install` learns three new flags:
+  `--literature-wiki <path>` (skips auto-detect, warns instead of failing if
+  the path does not exist yet), `--no-wiki` (opt-out), and
+  `--with-obsidian-mcp` (auto-wires the Obsidian Local REST API plugin into
+  `opencode.json` by reading the plugin's `data.json`). In an interactive
+  terminal the wiki path and Obsidian MCP are also offered through prompts.
+  Closes the "stranger-onboarding" gap surfaced by the researcher trip-wires.
+- **Public docs.** `docs/installation.md` (~180 lines) covers prerequisites,
+  install, flags, the Obsidian plugin setup with a manual curl fallback for
+  when the in-Obsidian installer hangs, composition with the global OpenCode
+  config, first run, and six common troubleshooting scenarios.
+- **Public README.** Rewritten as an npm landing page: quickstart, persona
+  table, two-tier knowledge architecture, concepts, configuration,
+  honest status block.
+- **Version is no longer hand-synced.** `src/cli/index.ts` imports
+  `package.json` as JSON and bun build inlines the value. The CLI
+  `--version` output is always what `package.json` says — no more drift.
+- **Package metadata for npm.** `package.json` carries `repository`,
+  `homepage`, `bugs`, and `engines: { node: ">=18" }`. `private: true` is
+  removed. `.npmignore` provides defense-in-depth on top of the `files`
+  whitelist.
+
+Verifiable: 151 tests pass; typecheck, biome, and `bun run build` all clean.
+The tarball (`npm pack --dry-run`) ships 59 files (340 kB) — only the
+plugin bundle (`dist/`), the 17 skill bodies, `docs/installation.md`, the
+JSON Schema, `README.md`, `LICENSE`, and `package.json`.
+
 ## 2026-06-06 — F-findings cleanup (post-Phase 6, pre-Phase 7 close)
 
 End-to-end demo on an empty repo surfaced three findings; all fixed.
