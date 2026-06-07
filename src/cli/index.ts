@@ -11,15 +11,16 @@ function printHelp(): void {
   console.log(`amore — ah-my-openresearch
 
 Usage:
-  amore install [--lab-dir <path>] [--literature-wiki <path> | --no-wiki]
-                [--reconcile] [--no-bootstrap]
+  amore install [--lab-dir <path>]
+                [--literature-wiki <path> | --no-wiki]
+                [--with-obsidian-mcp] [--reconcile] [--no-bootstrap]
   amore doctor [--lab-dir <path>] [--repair] [--json]
   amore --help
   amore --version
 
 Commands:
   install      Create the local <project>/lab/ scaffold and seed
-               <project>/lab/config.json + <project>/opencode.json
+               <project>/lab/config.json + opencode.json + AGENTS.md
                (idempotent; never overwrites).
   doctor       Validate the local <project>/lab/ contract.
 
@@ -33,14 +34,14 @@ Options:
                      Local REST API plugin (reads its data.json). Required in
                      non-interactive mode; in a TTY install prompts instead.
   --reconcile        Write README.md.new / SCHEMA.md.new candidates if docs differ.
-  --no-bootstrap     Skip the lab/config.json + opencode.json seed step.
+  --no-bootstrap     Skip lab/config.json, opencode.json, and AGENTS.md seeds.
   --repair           Repair safe lab files and regenerate index.md.
   --json             Print machine-readable doctor output.
   -h, --help         Show help.
   --version          Show version.
 
-When neither --literature-wiki nor --no-wiki is set, install auto-detects
-~/RL-Wiki or ~/PM-Wiki and (in an interactive terminal) prompts for confirmation.
+When no wiki flag is set, install auto-detects ~/RL-Wiki or ~/PM-Wiki and
+(in an interactive terminal) asks whether to use, create, or skip a wiki.
 
 MVP install is local-only: it does not create global config and does not mutate
 OpenCode MCP config.`);
@@ -165,7 +166,9 @@ async function main(args: string[]): Promise<void> {
   }
 
   if (command === 'install') {
-    if (literatureWiki !== undefined && noWiki) {
+    const wikiFlagCount =
+      (literatureWiki !== undefined ? 1 : 0) + (noWiki ? 1 : 0);
+    if (wikiFlagCount > 1) {
       throw new Error(
         '--literature-wiki and --no-wiki are mutually exclusive.',
       );

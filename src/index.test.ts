@@ -11,6 +11,7 @@ import amorePlugin from './index';
 interface FakeOpencodeConfig {
   agent?: Record<string, unknown>;
   mcp?: Record<string, unknown>;
+  skills?: { paths?: string[] };
 }
 
 interface PluginHooks {
@@ -97,13 +98,26 @@ describe('amore plugin — config hook', () => {
     const cfg = await runPluginConfigHook();
     const agent = (cfg.agent ?? {}) as Record<
       string,
-      { mode?: string; model?: string; prompt?: string }
+      { mode?: string; model?: string; prompt?: string; skills?: string[] }
     >;
     expect(agent.orchestrator.mode).toBe('primary');
     expect(typeof agent.orchestrator.model).toBe('string');
     expect(typeof agent.orchestrator.prompt).toBe('string');
+    expect(agent.orchestrator.skills).toEqual(['*']);
+    expect(agent.prospector.skills).toContain('claim-extract');
+    expect(agent.prospector.skills).toContain('paper-search');
     expect(agent.librarian.mode).toBe('subagent');
     expect(agent.council.mode).toBe('all');
     expect(agent.writer.mode).toBe('all');
+  });
+
+  test('registers bundled skill path without replacing user paths', async () => {
+    const cfg = await runPluginConfigHook({
+      skills: { paths: ['/custom/skills'] },
+    });
+    expect(cfg.skills?.paths).toContain('/custom/skills');
+    expect(cfg.skills?.paths?.some((path) => path.endsWith('src/skills'))).toBe(
+      true,
+    );
   });
 });

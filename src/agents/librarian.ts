@@ -24,7 +24,7 @@ experiments (that's @coder), or write papers (that's @writer).
 <Session Start>
 On every session, before responding to the user, you MUST:
 1. Read the literature wiki's contract documentation. Look first at
-   \`<WIKI_PATH>/AGENTS.md\`, then \`<WIKI_PATH>/CLAUDE.md\`, then
+   \`<WIKI_PATH>/RULES.md\`, then \`<WIKI_PATH>/AGENTS.md\`, then
    \`<WIKI_PATH>/README.md\` — whichever exists. This document defines the
    wiki's naming, frontmatter, log format, immutable zones, and approval
    rules.

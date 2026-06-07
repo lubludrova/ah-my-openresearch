@@ -1,6 +1,6 @@
 ---
 name: wiki-ingest
-description: Ingest a paper into the user's outside literature wiki under that wiki's own contract, then mirror the paper's atomic claims into the project lab as claim drafts. Use when user says "add this paper", "ingest", "<paper-slug> to wiki", "I have a new PDF", "register this paper", or wants a new paper landed in both the literature wiki and the project lab. Requires the literature wiki to have a contract file (AGENTS.md or CLAUDE.md or ingest_prompt.md at the wiki root).
+description: Ingest a paper into the user's outside literature wiki under that wiki's own contract, then mirror the paper's atomic claims into the project lab as claim drafts. Use when user says "add this paper", "ingest", "<paper-slug> to wiki", "I have a new PDF", "register this paper", or wants a new paper landed in both the literature wiki and the project lab. Requires the literature wiki to have a contract file (RULES.md or AGENTS.md or ingest_prompt.md at the wiki root).
 argument-hint: <source-ref-or-paste>
 ---
 
@@ -41,8 +41,8 @@ You read the wiki's contract and execute it verbatim.
 Try in order:
 1. Read `<WIKI_PATH>/ingest_prompt.md` if it exists — the explicit
    playbook.
-2. Read `<WIKI_PATH>/AGENTS.md` — the wiki schema and rules.
-3. Read `<WIKI_PATH>/CLAUDE.md` — fallback equivalent.
+2. Read `<WIKI_PATH>/RULES.md` — the wiki schema and rules.
+3. Read `<WIKI_PATH>/AGENTS.md` — fallback equivalent.
 4. Read `<WIKI_PATH>/README.md` — last fallback.
 
 If NONE of these files exist or none describes naming / frontmatter /
@@ -52,7 +52,7 @@ log format, STOP and respond:
 Wiki contract not found at <WIKI_PATH>.
 
 To use wiki-ingest, your literature wiki must declare its rules in one
-of: AGENTS.md, CLAUDE.md, README.md, or ingest_prompt.md at the wiki
+of: RULES.md, AGENTS.md, README.md, or ingest_prompt.md at the wiki
 root. The file should cover at minimum:
 - page naming convention
 - frontmatter schema
@@ -72,7 +72,7 @@ If `ingest_prompt.md` (or equivalent step-by-step playbook) exists:
   log entry).
 - Honor its language and style rules.
 
-If only AGENTS.md / CLAUDE.md / README.md is present (declarative, no
+If only RULES.md / AGENTS.md / README.md is present (declarative, no
 explicit ingest playbook):
 - Execute this generic flow, deriving format from the contract:
   1. Read the paper (PDF / URL / text).
@@ -237,7 +237,7 @@ Other wiki artifacts:
 Input: `arxiv:<id>`
 
 Process:
-- Step 0: scanned `<WIKI_PATH>/` for AGENTS.md / CLAUDE.md / README.md / ingest_prompt.md — none found.
+- Step 0: scanned `<WIKI_PATH>/` for RULES.md / AGENTS.md / README.md / ingest_prompt.md — none found.
 - Stop.
 
 Output:
@@ -245,7 +245,7 @@ Output:
 Wiki contract not found at <WIKI_PATH>.
 
 To use wiki-ingest, your literature wiki must declare its rules in one
-of: AGENTS.md, CLAUDE.md, README.md, or ingest_prompt.md at the wiki
+of: RULES.md, AGENTS.md, README.md, or ingest_prompt.md at the wiki
 root. The file should cover at minimum:
 - page naming convention
 - frontmatter schema

@@ -165,7 +165,7 @@ Per-persona highlights:
 - **orchestrator** — routing + handoff format (D20). Persona descriptions
   of all five specialists in `<Personas>`. No external tool allowlist.
 - **librarian** — universal wiki-aware. Reads wiki contract at session
-  start (`<WIKI_PATH>/AGENTS.md | CLAUDE.md | README.md`). Operations live
+  start (`<WIKI_PATH>/RULES.md | AGENTS.md | README.md`). Operations live
   in skills; the prompt holds role, boundaries, behavior.
 - **prospector** — higher T (0.5) for divergent ideation. Writes
   `idea-*.md` and `exp-*.md` plan sections to `lab/drafts/`.

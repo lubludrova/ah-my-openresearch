@@ -18,6 +18,13 @@ export interface AgentDefinition {
   model: string;
   temperature: number;
   prompt: string;
+  /**
+   * Allowlist of skill names this persona may invoke. `["*"]` means any
+   * skill registered with OpenCode (via `Config.skills.paths`). User entries
+   * in their own `opencode.json` always win — this is just the plugin
+   * default.
+   */
+  skills?: string[];
 }
 
 // Kept for now as a domain-level concept (used in per-persona defaults design

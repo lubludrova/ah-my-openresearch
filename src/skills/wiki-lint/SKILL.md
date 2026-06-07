@@ -50,8 +50,8 @@ Categories for `scope:` — `structural`, `contract`, `graph`, `content`,
 ### Step 0 — Read wiki contract
 
 Read in order until one is found:
-1. `<WIKI_PATH>/AGENTS.md`
-2. `<WIKI_PATH>/CLAUDE.md`
+1. `<WIKI_PATH>/RULES.md`
+2. `<WIKI_PATH>/AGENTS.md`
 3. `<WIKI_PATH>/README.md`
 
 Extract the lint-relevant rules:
@@ -371,8 +371,8 @@ Contract: NOT FOUND (running baseline only)
 Pages scanned: 142
 Issues: ERROR=2 · WARN=18 · INFO=5
 
-INFO: No wiki contract file detected at <WIKI_PATH>/AGENTS.md,
-<WIKI_PATH>/CLAUDE.md, or <WIKI_PATH>/README.md. Contract-driven
+INFO: No wiki contract file detected at <WIKI_PATH>/RULES.md,
+<WIKI_PATH>/AGENTS.md, or <WIKI_PATH>/README.md. Contract-driven
 checks (required frontmatter fields, naming convention, log format)
 were skipped. Create a contract to enable full lint coverage.
 

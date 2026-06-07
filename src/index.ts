@@ -9,11 +9,23 @@
 // which mutates `opencodeConfig` at startup. See
 // `node_modules/@opencode-ai/plugin/dist/index.d.ts → Plugin/Hooks`.
 
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import type { Plugin } from '@opencode-ai/plugin';
 import { createAllAgents } from './agents';
 import { loadAmoreConfig } from './config';
 import { createPreWriteDraftsOnlyHook } from './hooks';
 import { createBuiltinMcps } from './mcp';
+
+/**
+ * Absolute path to the package's bundled skills directory. Resolved via
+ * `import.meta.url` so it works both from `dist/index.js` (the published
+ * bundle) and from `src/index.ts` (source mode during dev). The package
+ * layout has `dist/` and `src/skills/` as siblings at the package root,
+ * so the relative `../src/skills` walk works from either entry.
+ */
+const PLUGIN_FILE = fileURLToPath(import.meta.url);
+const PACKAGE_SKILLS_DIR = resolve(dirname(PLUGIN_FILE), '..', 'src', 'skills');
 
 // OpenCode ships two default general-purpose agent modes that amore
 // considers redundant in a research-lab project: `build` (write-everything
@@ -60,6 +72,23 @@ const amorePlugin: Plugin = async (input) => {
         if (!opencodeConfig.mcp[name]) {
           opencodeConfig.mcp[name] = mcp;
         }
+      }
+
+      // Skills: tell OpenCode to scan the package's bundled skills/ dir.
+      // OpenCode walks each path for `SKILL.md` files and exposes them by
+      // the `name` in their YAML frontmatter. User entries (extra paths) are
+      // preserved — we only append, never replace.
+      //
+      // The Config shape exported by @opencode-ai/sdk v1 (currently a peer
+      // of @opencode-ai/plugin) does not type `skills`; v2 does. We cast
+      // through a structural type covering only the fields we touch.
+      const cfgWithSkills = opencodeConfig as typeof opencodeConfig & {
+        skills?: { paths?: string[]; urls?: string[] };
+      };
+      cfgWithSkills.skills ??= {};
+      const existingPaths = cfgWithSkills.skills.paths ?? [];
+      if (!existingPaths.includes(PACKAGE_SKILLS_DIR)) {
+        cfgWithSkills.skills.paths = [...existingPaths, PACKAGE_SKILLS_DIR];
       }
     },
 

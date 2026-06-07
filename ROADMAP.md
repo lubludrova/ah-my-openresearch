@@ -145,7 +145,7 @@ No design decision currently blocks Phase 7/8 implementation.
   for sites without usable APIs, dynamic conference pages, login/session
   flows, or PDF retrieval. Zotero excluded by D3.
 - **Wiki Contract R1–R10 content** — exact frontmatter fields, log entry
-  format examples, naming regexes, against the real `~/RL-Wiki/CLAUDE.md`
+  format examples, naming regexes, against the real `~/RL-Wiki/RULES.md`
   + templates. Mechanism is closed (D19); detailed rule content is its
   own design round and will be triggered by the real Phase 7 demo.
 - **Host persona invocation syntax** — exact CLI sentence for invoking

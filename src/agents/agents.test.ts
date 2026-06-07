@@ -62,6 +62,35 @@ describe('createAllAgents', () => {
     expect(agents.librarian.model).toBe('override-lib');
     expect(agents.prospector.model).toBe(DEFAULT_PERSONA_MODELS.prospector);
   });
+
+  test('adds per-persona skill allowlists by default', () => {
+    const agents = createAllAgents();
+    expect(agents.orchestrator.skills).toEqual(['*']);
+    expect(agents.librarian.skills).toEqual(
+      expect.arrayContaining(['wiki-ingest', 'claim-extract', 'paper-search']),
+    );
+    expect(agents.prospector.skills).toEqual(
+      expect.arrayContaining([
+        'gap-map',
+        'novelty-vs-wiki',
+        'claim-extract',
+        'paper-search',
+      ]),
+    );
+    expect(agents.coder.skills).toEqual(
+      expect.arrayContaining(['run-experiment', 'analyze-results']),
+    );
+  });
+
+  test('per-persona skill overrides are honored when supplied', () => {
+    const agents = createAllAgents({
+      skills: {
+        prospector: ['idea-creator'],
+      },
+    });
+    expect(agents.prospector.skills).toEqual(['idea-creator']);
+    expect(agents.librarian.skills).toContain('wiki-ingest');
+  });
 });
 
 describe('orchestrator default settings', () => {

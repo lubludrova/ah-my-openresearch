@@ -4,7 +4,7 @@ import { afterEach, describe, expect, test } from 'bun:test';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { bootstrapProjectConfig } from './bootstrap';
 
 const tempDirs: string[] = [];
@@ -62,6 +62,22 @@ describe('bootstrapProjectConfig — basics', () => {
     );
     expect(written.literature_wiki_path).toBe('~/RL-Wiki');
     expect(result.warnings).toEqual([]);
+  });
+
+  test('writes starter AGENTS.md with project-specific paths', async () => {
+    const cwd = await tempProject();
+    const home = await tempHome('RL-Wiki');
+    const result = await bootstrapProjectConfig({
+      cwd,
+      homeDir: home,
+      interactive: false,
+    });
+    expect(result.agentsFile).toBe(join(cwd, 'AGENTS.md'));
+    const written = await Bun.file(expectString(result.agentsFile)).text();
+    expect(written).toContain(`# ${basename(cwd)}`);
+    expect(written).toContain('lab_dir: lab');
+    expect(written).toContain('literature_wiki_path: "~/RL-Wiki"');
+    expect(written).toContain('~/RL-Wiki/RULES.md');
   });
 
   test('prefers RL-Wiki over PM-Wiki on auto-detect', async () => {
@@ -159,6 +175,20 @@ describe('bootstrapProjectConfig — basics', () => {
     expect(kept.plugin).toEqual(['some-other-plugin']);
   });
 
+  test('does not overwrite existing AGENTS.md', async () => {
+    const cwd = await tempProject();
+    const home = await tempHome('RL-Wiki');
+    writeFileSync(join(cwd, 'AGENTS.md'), '# Custom rules\n', 'utf8');
+    const result = await bootstrapProjectConfig({
+      cwd,
+      homeDir: home,
+      interactive: false,
+    });
+    expect(result.agentsFile).toBeNull();
+    const kept = await Bun.file(join(cwd, 'AGENTS.md')).text();
+    expect(kept).toBe('# Custom rules\n');
+  });
+
   test('respects custom labDir', async () => {
     const cwd = await tempProject();
     const home = await tempHome();
@@ -170,6 +200,9 @@ describe('bootstrapProjectConfig — basics', () => {
     });
     expect(result.labConfig).toBe(join(cwd, 'research', 'lab', 'config.json'));
     expect(existsSync(expectString(result.labConfig))).toBe(true);
+    const agents = await Bun.file(expectString(result.agentsFile)).text();
+    expect(agents).toContain('lab_dir: research/lab');
+    expect(agents).toContain('research/lab/drafts/');
   });
 });
 
@@ -178,7 +211,7 @@ describe('bootstrapProjectConfig — literature wiki resolution', () => {
     const cwd = await tempProject();
     const home = await tempHome('RL-Wiki');
     const customWiki = await tempProject();
-    await writeFile(join(customWiki, 'CLAUDE.md'), '# my wiki\n', 'utf8');
+    await writeFile(join(customWiki, 'RULES.md'), '# my wiki\n', 'utf8');
     const result = await bootstrapProjectConfig({
       cwd,
       homeDir: home,
@@ -215,7 +248,7 @@ describe('bootstrapProjectConfig — literature wiki resolution', () => {
     });
     expect(result.resolvedWikiPath).toBe(customWiki);
     expect(result.warnings.length).toBe(1);
-    expect(result.warnings[0]).toContain('no CLAUDE.md');
+    expect(result.warnings[0]).toContain('no RULES.md');
   });
 
   test('--no-wiki omits literature_wiki_path even when auto-detect would find one', async () => {
@@ -235,23 +268,9 @@ describe('bootstrapProjectConfig — literature wiki resolution', () => {
     expect(written.literature_wiki_path).toBeUndefined();
   });
 
-  test('interactive prompt confirms auto-detected wiki on blank/Y', async () => {
+  test('interactive [u] picks the auto-detected path when accepted blank', async () => {
     const cwd = await tempProject();
     const home = await tempHome('RL-Wiki');
-    const result = await bootstrapProjectConfig({
-      cwd,
-      homeDir: home,
-      interactive: true,
-      prompt: async () => '',
-    });
-    expect(result.resolvedWikiPath).toBe('~/RL-Wiki');
-  });
-
-  test('interactive prompt rejects auto-detected on N, then accepts manual path', async () => {
-    const cwd = await tempProject();
-    const home = await tempHome('RL-Wiki');
-    const customWiki = await tempProject();
-    await writeFile(join(customWiki, 'CLAUDE.md'), '#\n', 'utf8');
     let calls = 0;
     const result = await bootstrapProjectConfig({
       cwd,
@@ -260,19 +279,93 @@ describe('bootstrapProjectConfig — literature wiki resolution', () => {
       prompt: async (q) => {
         calls += 1;
         if (calls === 1) {
-          expect(q).toContain('Use detected');
-          return 'n';
+          expect(q).toContain('[u]');
+          expect(q).toContain('[c]');
+          expect(q).toContain('[s]');
+          return 'u';
         }
-        expect(q).toContain('blank to skip');
-        return customWiki;
+        // second prompt: path with auto-detected suggestion
+        expect(q).toContain('~/RL-Wiki');
+        return '';
       },
     });
     expect(calls).toBe(2);
+    expect(result.wikiKind).toBe('use');
+    expect(result.resolvedWikiPath).toBe('~/RL-Wiki');
+  });
+
+  test('interactive [u] with an explicit custom path', async () => {
+    const cwd = await tempProject();
+    const home = await tempHome('RL-Wiki');
+    const customWiki = await tempProject();
+    await writeFile(join(customWiki, 'RULES.md'), '# rules\n', 'utf8');
+    let calls = 0;
+    const result = await bootstrapProjectConfig({
+      cwd,
+      homeDir: home,
+      interactive: true,
+      prompt: async () => {
+        calls += 1;
+        return calls === 1 ? 'u' : customWiki;
+      },
+    });
+    expect(result.wikiKind).toBe('use');
     expect(result.resolvedWikiPath).toBe(customWiki);
     expect(result.warnings).toEqual([]);
   });
 
-  test('interactive prompt with blank entry skips wiki', async () => {
+  test('interactive [c] creates a new starter wiki with default name', async () => {
+    const cwd = await tempProject();
+    const home = await tempHome();
+    let calls = 0;
+    const result = await bootstrapProjectConfig({
+      cwd,
+      homeDir: home,
+      interactive: true,
+      prompt: async () => {
+        calls += 1;
+        return calls === 1 ? 'c' : ''; // accept default name
+      },
+    });
+    expect(result.wikiKind).toBe('create');
+    expect(result.wikiCreated).toBe(true);
+    expect(result.resolvedWikiPath).toBe('./llm-wiki');
+    expect(existsSync(join(cwd, 'llm-wiki', 'RULES.md'))).toBe(true);
+    expect(existsSync(join(cwd, 'llm-wiki', 'wiki'))).toBe(true);
+    expect(existsSync(join(cwd, 'llm-wiki', 'raw'))).toBe(true);
+  });
+
+  test('interactive [c] honors a custom wiki name', async () => {
+    const cwd = await tempProject();
+    const home = await tempHome();
+    let calls = 0;
+    const result = await bootstrapProjectConfig({
+      cwd,
+      homeDir: home,
+      interactive: true,
+      prompt: async () => {
+        calls += 1;
+        return calls === 1 ? 'c' : 'rl-notes';
+      },
+    });
+    expect(result.resolvedWikiPath).toBe('./rl-notes');
+    expect(existsSync(join(cwd, 'rl-notes', 'RULES.md'))).toBe(true);
+  });
+
+  test('interactive [s] skips wiki entirely', async () => {
+    const cwd = await tempProject();
+    const home = await tempHome('RL-Wiki');
+    const result = await bootstrapProjectConfig({
+      cwd,
+      homeDir: home,
+      interactive: true,
+      prompt: async () => 's',
+    });
+    expect(result.wikiKind).toBe('skip');
+    expect(result.resolvedWikiPath).toBeNull();
+  });
+
+  test('interactive blank choice defaults to skip', async () => {
     const cwd = await tempProject();
     const home = await tempHome();
     const result = await bootstrapProjectConfig({
@@ -297,7 +390,7 @@ async function makeWikiWithPlugin(
 ): Promise<string> {
   const wiki = await mkdtemp(join(tmpdir(), 'amore-bootstrap-wiki-'));
   tempDirs.push(wiki);
-  await writeFile(join(wiki, 'CLAUDE.md'), '# wiki contract\n', 'utf8');
+  await writeFile(join(wiki, 'RULES.md'), '# wiki contract\n', 'utf8');
   const pluginDir = join(
     wiki,
     '.obsidian',

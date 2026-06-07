@@ -27,8 +27,57 @@ export type { AgentDefinition, AgentMode, Tier } from './types';
 export interface CreateAllAgentsOptions {
   /** Per-persona model overrides. Keys are persona names. */
   models?: Partial<Record<string, string>>;
+  /** Per-persona skill allowlist overrides. Keys are persona names. */
+  skills?: Partial<Record<string, string[]>>;
   /** Path to the outside literature wiki (passed to librarian). */
   wikiPath?: string;
+}
+
+/**
+ * Per-persona skill allowlists. Each persona declares which skill names it
+ * may invoke. `["*"]` means any skill registered with OpenCode. Allowlists
+ * are intentionally generous — most personas can call `claim-extract` for
+ * provenance work, and `paper-search` is useful both for librarian (ingest)
+ * and for prospector (novelty checks).
+ */
+export const DEFAULT_PERSONA_SKILLS: Record<string, string[]> = {
+  orchestrator: ['*'],
+  librarian: [
+    'claim-extract',
+    'wiki-ingest',
+    'wiki-lint',
+    'paper-search',
+    'contradiction-check',
+  ],
+  prospector: [
+    'gap-map',
+    'idea-creator',
+    'novelty-vs-wiki',
+    'research-refine',
+    'paper-search',
+    'claim-extract',
+    'analyze-results',
+  ],
+  coder: [
+    'run-experiment',
+    'monitor-experiment',
+    'analyze-results',
+    'claim-extract',
+  ],
+  council: ['council-session', 'paper-audit'],
+  writer: ['paper-plan', 'paper-figure', 'paper-audit', 'council-session'],
+};
+
+function withSkills(
+  agent: AgentDefinition,
+  personaName: string,
+  override?: string[],
+): AgentDefinition {
+  const skills = override ?? DEFAULT_PERSONA_SKILLS[personaName];
+  if (!skills) {
+    return agent;
+  }
+  return { ...agent, skills };
 }
 
 /**
@@ -42,13 +91,28 @@ export function createAllAgents(
     ...DEFAULT_PERSONA_MODELS,
     ...options?.models,
   };
+  const skillsOverrides = options?.skills ?? {};
   const wikiPath = options?.wikiPath ?? DEFAULT_LITERATURE_WIKI;
+
+  function build(name: string, base: AgentDefinition): AgentDefinition {
+    return withSkills(base, name, skillsOverrides[name]);
+  }
+
   return {
-    orchestrator: createOrchestratorAgent(models.orchestrator),
-    librarian: createLibrarianAgent(models.librarian, wikiPath),
-    prospector: createProspectorAgent(models.prospector, wikiPath),
-    coder: createCoderAgent(models.coder),
-    council: createCouncilAgent(models.council, wikiPath),
-    writer: createWriterAgent(models.writer, wikiPath),
+    orchestrator: build(
+      'orchestrator',
+      createOrchestratorAgent(models.orchestrator),
+    ),
+    librarian: build(
+      'librarian',
+      createLibrarianAgent(models.librarian, wikiPath),
+    ),
+    prospector: build(
+      'prospector',
+      createProspectorAgent(models.prospector, wikiPath),
+    ),
+    coder: build('coder', createCoderAgent(models.coder)),
+    council: build('council', createCouncilAgent(models.council, wikiPath)),
+    writer: build('writer', createWriterAgent(models.writer, wikiPath)),
   };
 }

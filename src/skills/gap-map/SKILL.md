@@ -103,8 +103,8 @@ Before interpreting wiki pages, read the user's wiki contract at runtime.
 
 Look for these files under `<WIKI_PATH>`:
 
-1. `AGENTS.md`
-2. `CLAUDE.md`
+1. `RULES.md`
+2. `AGENTS.md`
 3. `README.md`
 4. `ingest_prompt.md`
 

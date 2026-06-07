@@ -94,8 +94,8 @@ If `<LAB_ROOT>` is missing, stop. Do not invent lab state.
 Read the wiki contract before interpreting wiki pages. Look under
 `<WIKI_PATH>` for:
 
-1. `AGENTS.md`
-2. `CLAUDE.md`
+1. `RULES.md`
+2. `AGENTS.md`
 3. `README.md`
 4. `ingest_prompt.md`
 
@@ -381,7 +381,7 @@ Hard forbids:
 - `src/skills/research-refine/SKILL.md` — downstream proposal refinement.
 - `src/skills/experiment-plan/SKILL.md` — downstream experiment planning.
 - `src/skills/wiki-ingest/SKILL.md` — wiki/lab literature ingestion.
-- `<WIKI_PATH>/AGENTS.md`, `<WIKI_PATH>/CLAUDE.md`, `<WIKI_PATH>/README.md`,
+- `<WIKI_PATH>/RULES.md`, `<WIKI_PATH>/AGENTS.md`, `<WIKI_PATH>/README.md`,
   `<WIKI_PATH>/ingest_prompt.md` — runtime wiki contract sources.
 - Source patterns: ARIS `novelty-check`, ARIS `patent-novelty-check`,
   AI-Scientist novelty loop, obsidian-wiki `wiki-query`, obsidian-wiki

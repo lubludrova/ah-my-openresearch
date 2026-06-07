@@ -15,8 +15,9 @@ bunx ah-my-openresearch install
 ```
 
 That single command scaffolds a per-project research lab, points the
-librarian at your literature wiki, and (if you have Obsidian's Local REST
-API plugin running) wires it up as an MCP. See
+librarian at your literature wiki, creates a project-level `AGENTS.md`,
+and (if you have Obsidian's Local REST API plugin running) wires it up as
+an MCP. See
 [`docs/installation.md`](docs/installation.md) for prerequisites and
 configuration details.
 
@@ -50,7 +51,7 @@ broken cross-references at any time.
 
 - **Outside literature wiki** (e.g. `~/RL-Wiki`) — cross-project paper
   notes, concept pages, MoCs. The librarian reads it under the wiki's own
-  contract (`<wiki>/CLAUDE.md` or `AGENTS.md`).
+  contract (`<wiki>/RULES.md` or `AGENTS.md`).
 - **Per-project lab** (`<project>/lab/`) — atomic claims with provenance,
   ideas with target gaps, experiments with plan / run / results. Grows with
   the project, never bleeds into the literature wiki.
@@ -62,8 +63,9 @@ from ARIS, claude-octopus, and academic-research-skills; sources cited per
 skill in `design/Skill Catalog.md`.
 
 **Write boundary** — a `tool.execute.before` hook stops agents from writing
-outside `<project>/lab/drafts/` (plus appending to `log.md` / `edges.jsonl`
-and regenerating `index.md`). Future canon/promote machinery slots in here.
+protected files inside `<project>/lab/`; agent-written research artifacts
+land in `drafts/`, with allowed appends to `log.md` / `edges.jsonl` and
+regeneration of `index.md`. Future canon/promote machinery slots in here.
 
 ## Concepts
 
@@ -76,15 +78,15 @@ and regenerating `index.md`). Future canon/promote machinery slots in here.
 - **Strict edge directions.** `contradicts` requires `claim → claim`,
   `addresses_gap` requires `idea → claim`, etc. Wrong direction → doctor
   fails the validation.
-- **Wiki contract.** Librarian reads `<wiki>/CLAUDE.md` (or `AGENTS.md`)
+- **Wiki contract.** Librarian reads `<wiki>/RULES.md` (or `AGENTS.md`)
   at session start; the wiki's own conventions (naming, frontmatter, log
   format) win.
 
 ## Configuration
 
-`amore install` writes a project-level `opencode.json` that declares the
-plugin. Provider, model, and global MCPs continue to come from
-`~/.config/opencode/opencode.json`. The two files compose at load time.
+`amore install` writes a project-level `opencode.json` and `AGENTS.md`.
+Provider, model, and global MCPs continue to come from
+`~/.config/opencode/opencode.json`. The configs compose at load time.
 
 ```json
 {

@@ -33,7 +33,7 @@ files in `<RAW_DIR>` (raw is immutable per the llm-wiki convention).
 - **WIKI_PATH** — outside literature wiki, parameterized per user
   (placeholder same as `librarian.ts` `<WIKI_PATH>`).
 - **WIKI_CONTRACT** — resolution order at session start:
-  `<WIKI_PATH>/AGENTS.md`, then `<WIKI_PATH>/CLAUDE.md`, then
+  `<WIKI_PATH>/RULES.md`, then `<WIKI_PATH>/AGENTS.md`, then
   `<WIKI_PATH>/README.md`, then `<WIKI_PATH>/ingest_prompt.md`.
 - **RAW_DIR** — resolution order:
   1. From wiki contract: a `raw_dir` / `sources_dir` field if declared.
@@ -105,8 +105,8 @@ Same gate as `wiki-ingest`:
 
 1. Read the wiki contract per WIKI_CONTRACT resolution order. If
    none exists → STOP with the same message wiki-ingest uses:
-   "Wiki contract not found at `<WIKI_PATH>`. Create one (AGENTS.md
-   / CLAUDE.md / README.md / ingest_prompt.md) before paper-search
+   "Wiki contract not found at `<WIKI_PATH>`. Create one (RULES.md
+   / AGENTS.md / README.md / ingest_prompt.md) before paper-search
    can stage PDFs into the wiki."
 2. Resolve `RAW_DIR` per the constant order. If the contract
    explicitly forbids writes outside `inbox/` or similar, honor
@@ -412,7 +412,7 @@ Process:
 Input: `transformer scaling laws`
 
 Process:
-- Step 0: no AGENTS.md / CLAUDE.md / README.md / ingest_prompt.md at
+- Step 0: no RULES.md / AGENTS.md / README.md / ingest_prompt.md at
   `<WIKI_PATH>`.
 - STOP. Return contract-missing message (same as wiki-ingest). Do
   not download PDFs anywhere without a contract telling us where.

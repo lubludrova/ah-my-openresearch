@@ -94,8 +94,8 @@ standard amore idea schema and report the missing runtime schema.
 Read the wiki contract before interpreting wiki pages. Look under `<WIKI_PATH>`
 for:
 
-1. `AGENTS.md`
-2. `CLAUDE.md`
+1. `RULES.md`
+2. `AGENTS.md`
 3. `README.md`
 4. `ingest_prompt.md`
 

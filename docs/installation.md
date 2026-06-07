@@ -26,13 +26,14 @@ What this does, in order:
 
 1. Creates `lab/` (the per-project research record): `README.md`,
    `SCHEMA.md`, `log.md`, `index.md`, `edges.jsonl`, `drafts/`.
-2. Auto-detects `~/RL-Wiki` or `~/PM-Wiki`. If found, asks `Use detected
-   literature wiki at <path>? [Y/n]`. If not found, asks for a path.
+2. Resolves a literature wiki: use an existing wiki, create `./llm-wiki/`,
+   or skip wiki setup from the interactive install prompt. Non-interactive
+   installs can pass an existing wiki path or skip wiki setup.
 3. If the chosen wiki has the Obsidian Local REST API plugin installed,
    asks `Auto-configure MCP entry? [Y/n]` and reads the plugin's
    `data.json` to wire `mcp.obsidian` into the new `opencode.json`.
-4. Writes `<project>/opencode.json` with the plugin entry
-   (`"plugin": ["ah-my-openresearch"]`).
+4. Writes `<project>/lab/config.json`, `<project>/opencode.json`, and
+   `<project>/AGENTS.md` with project-specific lab/wiki paths.
 
 Everything is idempotent: re-running `install` never overwrites existing
 files. Skipping the bootstrap is `--no-bootstrap`.
@@ -50,7 +51,7 @@ bunx ah-my-openresearch install \
 | `--literature-wiki <path>` | Use this path; skip auto-detect and prompts. Warns (does not fail) if the path doesn't exist yet. |
 | `--no-wiki` | Skip `literature_wiki_path` entirely. Useful for non-literature projects. |
 | `--with-obsidian-mcp` | Wire `mcp.obsidian` into `opencode.json`. Required in non-TTY mode (CI). |
-| `--no-bootstrap` | Only create the lab; don't seed `lab/config.json` or `opencode.json`. |
+| `--no-bootstrap` | Only create the lab; don't seed `lab/config.json`, `opencode.json`, or `AGENTS.md`. |
 | `--reconcile` | If `lab/README.md` or `lab/SCHEMA.md` differ from the defaults, write `.new` candidates beside them. |
 
 ## Setting up the Obsidian Local REST API plugin
@@ -89,7 +90,7 @@ enable it.
 ## Composing with the global OpenCode config
 
 `amore install` writes a **project-level** `opencode.json` that declares the
-plugin and instructions. Provider/model/MCPs you keep in
+plugin and points the host CLI at `AGENTS.md`. Provider/model/MCPs you keep in
 `~/.config/opencode/opencode.json` (the global config) still apply. When
 OpenCode loads a project, the two files compose.
 
@@ -136,9 +137,9 @@ opencode                          # or `codex`, or `claude`
 
 The host CLI loads `ah-my-openresearch`, which registers six research
 personas (`orchestrator`, `librarian`, `prospector`, `coder`, `council`,
-`writer`) and the `obsidian` MCP. Ask `librarian` to extract claims from a
-paper note in your wiki; the personas write artifacts only under
-`lab/drafts/`.
+`writer`), the bundled skill directory, and the built-in MCP entries. Ask
+`librarian` to extract claims from a paper note in your wiki; research
+artifacts land under `lab/drafts/`.
 
 Run `amore doctor` at any point to validate the lab contract.
 
@@ -159,8 +160,8 @@ verification for localhost. If you want strict verification, follow the
 plugin's "trust this certificate" instructions in its settings page.
 
 **The plugin loads but `librarian` says `wiki contract not found`.**
-amore looks for `CLAUDE.md`, `AGENTS.md`, `README.md`, or `ingest_prompt.md`
-at the wiki root. Add a short `<wiki>/CLAUDE.md` describing the wiki's
+amore looks for `RULES.md`, `AGENTS.md`, `README.md`, or `ingest_prompt.md`
+at the wiki root. Add a short `<wiki>/RULES.md` describing the wiki's
 naming convention, frontmatter, and log format. If you skip this, the
 librarian falls back to internal defaults.
 
@@ -177,5 +178,6 @@ Delete or merge by hand, then re-run.
 - Does not modify `~/.config/opencode/opencode.json` (your global config).
 - Does not install `bun`, `obsidian-mcp-server`, or any Obsidian plugin.
 - Does not check whether OpenCode/Codex/Claude Code is installed.
-- Does not write into your literature wiki — only the librarian persona
-  does that, at runtime.
+- Does not mutate an existing literature wiki — only the librarian persona
+  does that, at runtime. The interactive installer can create a new starter
+  wiki in the project when you choose that option.
