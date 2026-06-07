@@ -6,8 +6,8 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {
-    "amore": "./dist/cli/index.js",
-    "ah-my-openresearch": "./dist/cli/index.js"
+    "amore": "dist/cli/index.js",
+    "ah-my-openresearch": "dist/cli/index.js"
   },
   "repository": {
     "type": "git",
