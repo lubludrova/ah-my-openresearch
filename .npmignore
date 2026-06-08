@@ -1,0 +1,71 @@
+# Defense-in-depth on top of the `files` whitelist in package.json.
+#
+# `files` currently allows only:
+#   dist/, src/skills/, ah-my-openresearch.schema.json, README.md, LICENSE
+#   (and package.json itself).
+#
+# This file re-excludes everything else explicitly, so the tarball stays
+# clean even if the `files` whitelist is ever loosened or removed.
+
+# ── Dev-only Markdown at repo root ──
+CHANGELOG.md
+ROADMAP.md
+codemap.md
+AGENTS.md
+
+# ── Source TypeScript — only src/skills/*.md ships ──
+src/agents/
+src/cli/
+src/config/
+src/hooks/
+src/lab/
+src/mcp/
+src/utils/
+src/index.ts
+
+# ── Tests anywhere in the tree ──
+*.test.ts
+*.test.js
+*.test.d.ts
+*.spec.ts
+*.spec.js
+*.spec.d.ts
+__tests__/
+__mocks__/
+coverage/
+.nyc_output/
+
+# ── Build / project config ──
+bun.lock
+bunfig.toml
+tsconfig.json
+tsconfig.build.json
+biome.json
+scripts/
+
+# ── Git / CI / IDE ──
+.git/
+.github/
+.gitignore
+.gitattributes
+.vscode/
+.idea/
+*.code-workspace
+
+# ── Dependencies ──
+node_modules/
+
+# ── OS / editor noise ──
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*.bak
+*.tmp
+*.log
+*.backup-*
+
+# ── Editor scratch / draft notes anywhere ──
+**/scratch/
+**/.scratch/
+**/draft-*.md

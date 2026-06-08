@@ -1,0 +1,14 @@
+node_modules/
+dist/
+*.log
+.env
+.env.local
+.DS_Store
+.claude/
+.opencode/
+tmp/
+
+AGENTS.md
+CHANGELOG.md
+ROADMAP.md
+codemap.md
