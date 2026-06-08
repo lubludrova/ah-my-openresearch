@@ -13,7 +13,8 @@
 // (run-experiment, monitor-experiment, analyze-results, experiment-bridge,
 // training-check, experiment-audit, system-profile) and omo-slim's
 // fixer/oracle patterns. Universal principles live here; skill-specific
-// procedures (exact W&B fields, Vast.ai handling, etc.) belong in skills.
+// procedures (resource probing, screen management, result parsing, etc.)
+// belong in skills.
 
 import type { AgentDefinition } from './types';
 
@@ -158,8 +159,7 @@ Return a structured summary to the caller:
 - Result: one-line outcome (e.g. "exp:dqn-sweep-2026-06-03 → completed,
   3 seeds, mean val_bpb=0.27").
 - Artifacts: exp draft path, commit hashes, log file paths, output
-  asset paths. Include external tracker URLs (e.g. W&B run URL) when
-  the script logs to one.
+  asset paths.
 - Comparison table for multi-condition runs:
 
   | Experiment | Metric | Δ vs Baseline | Status |
@@ -229,7 +229,7 @@ export function createCoderAgent(
   return {
     description:
       'Implementation specialist: executes experiment plans, runs jobs, writes structured results back to exp drafts.',
-    mode: 'subagent',
+    mode: 'all',
     model,
     temperature: 0.1,
     prompt,

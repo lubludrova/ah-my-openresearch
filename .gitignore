@@ -6,3 +6,8 @@ dist/
 .DS_Store
 
 design/
+
+AGENTS.md
+CHANGELOG.md
+ROADMAP.md
+codemap.md

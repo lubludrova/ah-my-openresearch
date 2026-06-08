@@ -21,7 +21,7 @@ Usage:
 Commands:
   install      Create the local <project>/lab/ scaffold and seed
                <project>/lab/config.json + opencode.json + AGENTS.md
-               (idempotent; never overwrites).
+               (idempotent; preserves existing fields).
   doctor       Validate the local <project>/lab/ contract.
 
 Options:

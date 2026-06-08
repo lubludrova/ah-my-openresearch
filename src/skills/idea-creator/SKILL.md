@@ -97,7 +97,6 @@ for:
 1. `RULES.md`
 2. `AGENTS.md`
 3. `README.md`
-4. `ingest_prompt.md`
 
 Use explicit wiki rules when present. If no contract exists, use a read-only
 Markdown fallback and say the wiki contract was missing.

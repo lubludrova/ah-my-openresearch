@@ -150,7 +150,7 @@ export function createProspectorAgent(
   return {
     description:
       'Research ideator: proposes hypotheses, drafts experiment plans, checks novelty against prior art.',
-    mode: 'subagent',
+    mode: 'all',
     model,
     temperature: 0.5,
     prompt,

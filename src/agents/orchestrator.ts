@@ -210,7 +210,7 @@ export function createOrchestratorAgent(
   return {
     description:
       'Research coordinator. Parses intent, routes to specialist personas, summarizes handoffs, logs lab state.',
-    mode: 'primary',
+    mode: 'all',
     model,
     temperature: 0.1,
     prompt,

@@ -9,6 +9,7 @@
 // which mutates `opencodeConfig` at startup. See
 // `node_modules/@opencode-ai/plugin/dist/index.d.ts → Plugin/Hooks`.
 
+import { existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Plugin } from '@opencode-ai/plugin';
@@ -20,21 +21,29 @@ import { createBuiltinMcps } from './mcp';
 /**
  * Absolute path to the package's bundled skills directory. Resolved via
  * `import.meta.url` so it works both from `dist/index.js` (the published
- * bundle) and from `src/index.ts` (source mode during dev). The package
- * layout has `dist/` and `src/skills/` as siblings at the package root,
- * so the relative `../src/skills` walk works from either entry.
+ * bundle) and from `src/index.ts` (source mode during dev).
  */
 const PLUGIN_FILE = fileURLToPath(import.meta.url);
-const PACKAGE_SKILLS_DIR = resolve(dirname(PLUGIN_FILE), '..', 'src', 'skills');
+const PACKAGE_SKILLS_DIR = resolveBundledSkillsDir(PLUGIN_FILE);
 
 // OpenCode ships two default general-purpose agent modes that amore
 // considers redundant in a research-lab project: `build` (write-everything
 // generalist) and `plan` (planning-only). amore is research-focused; its six
 // personas (orchestrator, librarian, prospector, coder, council, writer)
-// cover the relevant ground. We disable both by default. A user can re-enable
-// either by setting `agent.build = {}` or `agent.plan = {}` in their
-// project's opencode.json — user-supplied entries always win below.
+// cover the relevant ground. We force-disable both even if another plugin
+// touched those entries first.
 const DISABLED_DEFAULT_AGENTS = ['build', 'plan'] as const;
+
+function resolveBundledSkillsDir(moduleFile: string): string {
+  const moduleDir = dirname(moduleFile);
+  const candidates = [
+    // Source mode: src/index.ts -> src/skills.
+    resolve(moduleDir, 'skills'),
+    // Published bundle: dist/index.js -> src/skills.
+    resolve(moduleDir, '..', 'src', 'skills'),
+  ];
+  return candidates.find((path) => existsSync(path)) ?? candidates[0];
+}
 
 const amorePlugin: Plugin = async (input) => {
   const projectRoot = input.directory;
@@ -43,13 +52,20 @@ const amorePlugin: Plugin = async (input) => {
   return {
     config: async (opencodeConfig) => {
       opencodeConfig.agent ??= {};
+      const cfgWithAmoreFields = opencodeConfig as typeof opencodeConfig & {
+        default_agent?: string;
+        skills?: { paths?: string[]; urls?: string[] };
+      };
+      cfgWithAmoreFields.default_agent ??= 'orchestrator';
 
-      // Disable OpenCode's default generalist agents when the user has not
-      // touched them. If they have, leave their entry intact.
+      // Disable OpenCode's default generalist agents in amore projects.
+      // Plugin order matters: another plugin may have already touched these
+      // entries, so preserve any fields but force the disable flag.
       for (const name of DISABLED_DEFAULT_AGENTS) {
-        if (!opencodeConfig.agent[name]) {
-          opencodeConfig.agent[name] = { disable: true };
-        }
+        opencodeConfig.agent[name] = {
+          ...(opencodeConfig.agent[name] ?? {}),
+          disable: true,
+        };
       }
 
       // Personas: plugin defaults first, user opencode.json overrides win.
@@ -82,13 +98,13 @@ const amorePlugin: Plugin = async (input) => {
       // The Config shape exported by @opencode-ai/sdk v1 (currently a peer
       // of @opencode-ai/plugin) does not type `skills`; v2 does. We cast
       // through a structural type covering only the fields we touch.
-      const cfgWithSkills = opencodeConfig as typeof opencodeConfig & {
-        skills?: { paths?: string[]; urls?: string[] };
-      };
-      cfgWithSkills.skills ??= {};
-      const existingPaths = cfgWithSkills.skills.paths ?? [];
+      cfgWithAmoreFields.skills ??= {};
+      const existingPaths = cfgWithAmoreFields.skills.paths ?? [];
       if (!existingPaths.includes(PACKAGE_SKILLS_DIR)) {
-        cfgWithSkills.skills.paths = [...existingPaths, PACKAGE_SKILLS_DIR];
+        cfgWithAmoreFields.skills.paths = [
+          ...existingPaths,
+          PACKAGE_SKILLS_DIR,
+        ];
       }
     },
 

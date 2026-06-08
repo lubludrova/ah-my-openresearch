@@ -206,9 +206,20 @@ export async function install(options: InstallOptions = {}): Promise<void> {
   }
   if (written.opencodeConfig) {
     const mcpPart = written.obsidianMcpWired ? ' + mcp.obsidian' : '';
-    bulletOk('OpenCode config', `opencode.json (plugin${mcpPart})`);
+    const action =
+      written.opencodeConfigAction === 'updated' ? 'updated' : 'created';
+    bulletOk(
+      'OpenCode config',
+      `opencode.json ${action} (plugin + skills + disabled build/plan${mcpPart})`,
+    );
+    if (written.opencodeConfigBackup) {
+      bulletOk(
+        'Config backup',
+        `${relative(cwd, written.opencodeConfigBackup) || 'opencode.json.bak'}`,
+      );
+    }
   } else {
-    bulletOk('OpenCode config', 'opencode.json already exists (kept)');
+    bulletOk('OpenCode config', 'opencode.json already configured');
   }
   if (written.agentsFile) {
     bulletOk('Agent guide', 'AGENTS.md');
@@ -216,7 +227,11 @@ export async function install(options: InstallOptions = {}): Promise<void> {
     bulletOk('Agent guide', 'AGENTS.md already exists (kept)');
   }
 
-  for (const warning of [...wiki.warnings, ...mcpWarnings]) {
+  for (const warning of [
+    ...wiki.warnings,
+    ...mcpWarnings,
+    ...written.warnings,
+  ]) {
     bulletWarn(warning);
   }
 

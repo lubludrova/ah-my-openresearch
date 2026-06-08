@@ -1,6 +1,6 @@
 ---
 name: wiki-ingest
-description: Ingest a paper into the user's outside literature wiki under that wiki's own contract, then mirror the paper's atomic claims into the project lab as claim drafts. Use when user says "add this paper", "ingest", "<paper-slug> to wiki", "I have a new PDF", "register this paper", or wants a new paper landed in both the literature wiki and the project lab. Requires the literature wiki to have a contract file (RULES.md or AGENTS.md or ingest_prompt.md at the wiki root).
+description: Ingest a paper into the user's outside literature wiki under that wiki's own contract, then mirror the paper's atomic claims into the project lab as claim drafts. Use when user says "add this paper", "ingest", "<paper-slug> to wiki", "I have a new PDF", "register this paper", or wants a new paper landed in both the literature wiki and the project lab. Requires the literature wiki to have a contract file (RULES.md, AGENTS.md, or README.md at the wiki root).
 argument-hint: <source-ref-or-paste>
 ---
 
@@ -39,11 +39,9 @@ You read the wiki's contract and execute it verbatim.
 ### Step 0 — Detect wiki contract (HARD GATE)
 
 Try in order:
-1. Read `<WIKI_PATH>/ingest_prompt.md` if it exists — the explicit
-   playbook.
-2. Read `<WIKI_PATH>/RULES.md` — the wiki schema and rules.
-3. Read `<WIKI_PATH>/AGENTS.md` — fallback equivalent.
-4. Read `<WIKI_PATH>/README.md` — last fallback.
+1. Read `<WIKI_PATH>/RULES.md` — the wiki schema and rules.
+2. Read `<WIKI_PATH>/AGENTS.md` — fallback equivalent.
+3. Read `<WIKI_PATH>/README.md` — last fallback.
 
 If NONE of these files exist or none describes naming / frontmatter /
 log format, STOP and respond:
@@ -52,8 +50,8 @@ log format, STOP and respond:
 Wiki contract not found at <WIKI_PATH>.
 
 To use wiki-ingest, your literature wiki must declare its rules in one
-of: RULES.md, AGENTS.md, README.md, or ingest_prompt.md at the wiki
-root. The file should cover at minimum:
+of: RULES.md, AGENTS.md, or README.md at the wiki root. The file should
+cover at minimum:
 - page naming convention
 - frontmatter schema
 - log format
@@ -66,23 +64,15 @@ Do not proceed without a contract. Do not invent a default schema.
 
 ### Step A — Execute the wiki contract flow
 
-If `ingest_prompt.md` (or equivalent step-by-step playbook) exists:
-- Follow its steps verbatim, including any STOP / approval gates.
-- Honor its required artifacts (paper note, concept stubs, MoCs, index,
-  log entry).
-- Honor its language and style rules.
-
-If only RULES.md / AGENTS.md / README.md is present (declarative, no
-explicit ingest playbook):
-- Execute this generic flow, deriving format from the contract:
-  1. Read the paper (PDF / URL / text).
-  2. Propose a paper note (frontmatter per contract + 5-part body:
-     TL;DR / Context / Key Ideas / Method / Results) and STOP for the
-     user's approval.
-  3. Write the paper note to the wiki path implied by the contract's
-     naming rule.
-  4. Append the wiki log entry per the contract's log format.
-  5. Update the wiki index per the contract's index rule.
+Execute this generic ingest flow, deriving all formats from the contract:
+1. Read the paper (PDF / URL / text).
+2. Propose a paper note (frontmatter per contract + 5-part body:
+   TL;DR / Context / Key Ideas / Method / Results) and STOP for the
+   user's approval.
+3. Write the paper note to the wiki path implied by the contract's
+   naming rule.
+4. Append the wiki log entry per the contract's log format.
+5. Update the wiki index per the contract's index rule.
 
 At the end of Step A you must have:
 - A wiki paper-note path (e.g. `<WIKI_PATH>/wiki/<paper-slug>.md`).
@@ -203,8 +193,8 @@ Other wiki artifacts: <list or "none">
 Input: `paste:<inline paper text> <topic>`
 
 Process:
-- Step 0: contract found at `<WIKI_PATH>/AGENTS.md` + ingest playbook at `<WIKI_PATH>/ingest_prompt.md`.
-- Step A: execute the playbook with user approvals; ends with paper note + 2 concept stubs written.
+- Step 0: contract found at `<WIKI_PATH>/AGENTS.md`.
+- Step A: execute the wiki-ingest flow with user approvals; ends with paper note + 2 concept stubs written if the contract asks for stubs.
 - Step B: read paper note → 3 atomic claims found in "Key Ideas" → write 3 `claim-*.md` to lab/drafts/.
 - Step C: return summary.
 
@@ -237,7 +227,7 @@ Other wiki artifacts:
 Input: `arxiv:<id>`
 
 Process:
-- Step 0: scanned `<WIKI_PATH>/` for RULES.md / AGENTS.md / README.md / ingest_prompt.md — none found.
+- Step 0: scanned `<WIKI_PATH>/` for RULES.md / AGENTS.md / README.md — none found.
 - Stop.
 
 Output:
@@ -245,8 +235,8 @@ Output:
 Wiki contract not found at <WIKI_PATH>.
 
 To use wiki-ingest, your literature wiki must declare its rules in one
-of: RULES.md, AGENTS.md, README.md, or ingest_prompt.md at the wiki
-root. The file should cover at minimum:
+of: RULES.md, AGENTS.md, or README.md at the wiki root. The file should
+cover at minimum:
 - page naming convention
 - frontmatter schema
 - log format
@@ -316,7 +306,8 @@ The lab mirror runs only after the wiki step succeeds.
 
 - Librarian persona (`src/agents/librarian.ts`) — invokes this skill
   on user/orchestrator request to add a paper.
-- The user's wiki contract files (`<WIKI_PATH>/AGENTS.md`,
-  `ingest_prompt.md`, etc.) — authoritative for the wiki side.
+- The user's wiki contract files (`<WIKI_PATH>/RULES.md`,
+  `<WIKI_PATH>/AGENTS.md`, or `<WIKI_PATH>/README.md`) — authoritative
+  for the wiki side.
 - The lab artifact schema (`<project>/lab/SCHEMA.md`) — authoritative
   for the claim draft shape.

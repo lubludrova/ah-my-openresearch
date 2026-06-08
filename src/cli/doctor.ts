@@ -1,6 +1,8 @@
 import { existsSync } from 'node:fs';
 import { readFile, readdir } from 'node:fs/promises';
-import { relative, resolve } from 'node:path';
+import { dirname, relative, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import YAML from 'yaml';
 import { z } from 'zod';
 import {
   EdgeSchema,
@@ -42,6 +44,48 @@ interface DraftRecord {
   nodeId: string;
 }
 
+interface SkillFrontmatter {
+  name?: unknown;
+  description?: unknown;
+}
+
+const AMORE_PLUGIN_ENTRY = 'ah-my-openresearch';
+const AMORE_INSTRUCTIONS_FILE = 'AGENTS.md';
+const AMORE_DEFAULT_AGENT = 'orchestrator';
+const DISABLED_DEFAULT_AGENTS = ['build', 'plan'] as const;
+const DOCTOR_FILE = fileURLToPath(import.meta.url);
+const BUNDLED_SKILLS_DIR = resolveBundledSkillsDir(DOCTOR_FILE);
+const REQUIRED_BUNDLED_SKILLS = [
+  'analyze-results',
+  'claim-extract',
+  'contradiction-check',
+  'council-session',
+  'gap-map',
+  'idea-creator',
+  'intake-dispatch-summary',
+  'monitor-experiment',
+  'novelty-vs-wiki',
+  'paper-audit',
+  'paper-figure',
+  'paper-plan',
+  'paper-search',
+  'research-refine',
+  'run-experiment',
+  'wiki-ingest',
+  'wiki-lint',
+] as const;
+
+function resolveBundledSkillsDir(moduleFile: string): string {
+  const moduleDir = dirname(moduleFile);
+  const candidates = [
+    // Source mode: src/cli/doctor.ts -> src/skills.
+    resolve(moduleDir, '..', 'skills'),
+    // Published bundle: dist/cli/index.js -> src/skills.
+    resolve(moduleDir, '..', '..', 'src', 'skills'),
+  ];
+  return candidates.find((path) => existsSync(path)) ?? candidates[0];
+}
+
 function formatZodError(error: z.ZodError): string {
   return error.issues
     .map((issue) => {
@@ -68,6 +112,211 @@ function normalizeGeneratedIndex(content: string): string {
   return content
     .replace(/^Generated: .+$/m, 'Generated: <ignored>')
     .replace(/^- Last validation: .+$/m, '- Last validation: <ignored>');
+}
+
+function formatError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function isJsonObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function configContainsEntry(value: unknown, expected: string): boolean {
+  if (typeof value === 'string') {
+    return value === expected;
+  }
+
+  if (!Array.isArray(value)) {
+    return false;
+  }
+
+  return value.some((entry) => {
+    if (typeof entry === 'string') {
+      return entry === expected;
+    }
+    return Array.isArray(entry) && entry[0] === expected;
+  });
+}
+
+function stringArray(value: unknown): string[] | null {
+  if (!Array.isArray(value)) {
+    return null;
+  }
+  return value.every((entry) => typeof entry === 'string') ? value : null;
+}
+
+function hasDisabledAgent(
+  config: Record<string, unknown>,
+  agentName: string,
+): boolean {
+  if (!isJsonObject(config.agent)) {
+    return false;
+  }
+
+  const entry = config.agent[agentName];
+  return isJsonObject(entry) && entry.disable === true;
+}
+
+async function validateRequiredBundledSkills(skillsDir: string): Promise<{
+  checked: number;
+  failures: string[];
+}> {
+  const failures: string[] = [];
+
+  if (!existsSync(skillsDir)) {
+    return {
+      checked: 0,
+      failures: [`bundled skills directory does not exist: ${skillsDir}`],
+    };
+  }
+
+  for (const skillName of REQUIRED_BUNDLED_SKILLS) {
+    const skillPath = resolve(skillsDir, skillName, 'SKILL.md');
+    if (!existsSync(skillPath)) {
+      failures.push(`${skillName}: missing SKILL.md`);
+      continue;
+    }
+
+    let raw: string;
+    try {
+      raw = await readFile(skillPath, 'utf8');
+    } catch (error) {
+      failures.push(
+        `${skillName}: could not read SKILL.md: ${formatError(error)}`,
+      );
+      continue;
+    }
+
+    const frontmatter = raw.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+    if (!frontmatter) {
+      failures.push(`${skillName}: missing YAML frontmatter`);
+      continue;
+    }
+
+    let parsed: SkillFrontmatter;
+    try {
+      parsed = YAML.parse(frontmatter[1]) as SkillFrontmatter;
+    } catch (error) {
+      failures.push(
+        `${skillName}: invalid YAML frontmatter: ${formatError(error)}`,
+      );
+      continue;
+    }
+
+    if (parsed.name !== skillName) {
+      failures.push(`${skillName}: frontmatter name must match directory`);
+    }
+    if (
+      typeof parsed.description !== 'string' ||
+      parsed.description.trim().length === 0
+    ) {
+      failures.push(`${skillName}: description must be a non-empty string`);
+    }
+  }
+
+  return { checked: REQUIRED_BUNDLED_SKILLS.length, failures };
+}
+
+async function validateOpenCodeWiring(
+  cwd: string,
+  checks: DoctorCheck[],
+): Promise<void> {
+  const opencodePath = resolve(cwd, 'opencode.json');
+
+  if (!existsSync(opencodePath)) {
+    pushCheck(
+      checks,
+      'error',
+      'opencode.json',
+      'missing; run amore install so OpenCode can load the plugin, project AGENTS.md, disabled defaults, and bundled skills.',
+    );
+    return;
+  }
+
+  let parsedJson: unknown;
+  try {
+    parsedJson = JSON.parse(await readFile(opencodePath, 'utf8'));
+  } catch (error) {
+    pushCheck(
+      checks,
+      'error',
+      'opencode.json',
+      `invalid JSON: ${formatError(error)}`,
+    );
+    return;
+  }
+
+  if (!isJsonObject(parsedJson)) {
+    pushCheck(checks, 'error', 'opencode.json', 'must be a JSON object.');
+    return;
+  }
+
+  const config = parsedJson;
+  const configFailures: string[] = [];
+
+  if (!configContainsEntry(config.plugin, AMORE_PLUGIN_ENTRY)) {
+    configFailures.push(`plugin is missing "${AMORE_PLUGIN_ENTRY}"`);
+  }
+  if (!configContainsEntry(config.instructions, AMORE_INSTRUCTIONS_FILE)) {
+    configFailures.push(`instructions is missing "${AMORE_INSTRUCTIONS_FILE}"`);
+  } else if (!existsSync(resolve(cwd, AMORE_INSTRUCTIONS_FILE))) {
+    configFailures.push(`${AMORE_INSTRUCTIONS_FILE} is referenced but missing`);
+  }
+  if (config.default_agent !== AMORE_DEFAULT_AGENT) {
+    configFailures.push(`default_agent is not "${AMORE_DEFAULT_AGENT}"`);
+  }
+
+  if (configFailures.length > 0) {
+    pushCheck(checks, 'error', 'opencode.json', configFailures.join('; '));
+  } else {
+    pushCheck(
+      checks,
+      'ok',
+      'opencode.json',
+      'Plugin, AGENTS.md, and default_agent are wired.',
+    );
+  }
+
+  const agentFailures = DISABLED_DEFAULT_AGENTS.filter(
+    (agentName) => !hasDisabledAgent(config, agentName),
+  ).map((agentName) => `agent.${agentName}.disable is not true`);
+
+  if (agentFailures.length > 0) {
+    pushCheck(checks, 'error', 'opencode agents', agentFailures.join('; '));
+  } else {
+    pushCheck(
+      checks,
+      'ok',
+      'opencode agents',
+      'OpenCode build/plan defaults are disabled.',
+    );
+  }
+
+  const skills = isJsonObject(config.skills) ? config.skills : null;
+  const paths = skills ? stringArray(skills.paths) : null;
+  const skillFailures: string[] = [];
+
+  if (!paths) {
+    skillFailures.push('skills.paths must be an array of strings');
+  } else if (!paths.includes(BUNDLED_SKILLS_DIR)) {
+    skillFailures.push(`skills.paths is missing ${BUNDLED_SKILLS_DIR}`);
+  }
+
+  const skillValidation =
+    await validateRequiredBundledSkills(BUNDLED_SKILLS_DIR);
+  skillFailures.push(...skillValidation.failures);
+
+  if (skillFailures.length > 0) {
+    pushCheck(checks, 'error', 'opencode skills', skillFailures.join('; '));
+  } else {
+    pushCheck(
+      checks,
+      'ok',
+      'opencode skills',
+      `skills.paths includes bundled skills; checked ${skillValidation.checked} bundled skills.`,
+    );
+  }
 }
 
 async function validateDrafts(
@@ -334,6 +583,8 @@ export async function runDoctor(
       `Missing required item${layout.missing.length === 1 ? '' : 's'}: ${layout.missing.join(', ')}.`,
     );
   }
+
+  await validateOpenCodeWiring(cwd, checks);
 
   const drafts = await validateDrafts(labDir, checks);
   const nodeIds = new Set(drafts.map((draft) => draft.nodeId));

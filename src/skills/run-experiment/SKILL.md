@@ -1,6 +1,6 @@
 ---
 name: run-experiment
-description: Launch a planned experiment from its lab draft. Read the exp draft's plan, check git tree, run the sanity stage, bind GPUs, launch one screen per seed (local or SSH), update the draft's run section, flip status planned → running, append a lab/log.md update entry, and return a launch summary. Use when user says "run exp:<slug>", "kick off the <name> experiment", "launch the planned run", "start training for <exp>", or when the orchestrator routes an `experiment-run` category task to @coder.
+description: Launch a planned experiment from its lab draft. Read the exp draft's plan and command notes, check git tree, run the sanity stage, bind GPUs, launch one local screen per seed, update the draft's run section, flip status planned → running, append a lab/log.md update entry, and return a launch summary. Use when user says "run exp:<slug>", "kick off the <name> experiment", "launch the planned run", "start training for <exp>", or when the orchestrator routes an `experiment-run` category task to @coder.
 argument-hint: <exp-id> | <natural-language-ref>
 ---
 
@@ -14,7 +14,7 @@ Take one planned experiment draft (`exp-<slug>-<YYYY-MM-DD>.md`) and turn it
 into running jobs. You are the launcher, not the analyser:
 
 - Validate the plan, check the working tree, do a sanity run.
-- Launch one screen per seed on the chosen backend.
+- Launch one local screen per seed.
 - Write the `run` section and flip status `planned → running`.
 - Hand back a launch summary. Do NOT wait for completion. Do NOT analyse.
 
@@ -27,14 +27,14 @@ belongs to `monitor-experiment`. Claim extraction belongs to @librarian.
 - **LAB_DRAFTS** — `<project>/lab/drafts/`. Where exp-*.md lives.
 - **LAB_LOG** — `<project>/lab/log.md`. Append-only `update` entry here.
 - **LAB_INDEX** — `<project>/lab/index.md`. Regenerated after the write.
-- **PROJECT_AGENTS** — `<project>/AGENTS.md`. Optional backend config.
-- **DEFAULT_RUNS_DIR** — `<project>/runs/exp-<slug>-<date>/seed-<N>/`.
-  Per-seed `train.log` (full stdout via `tee`) and `metrics.json`.
+- **PROJECT_AGENTS** — `<project>/AGENTS.md`. Project instructions; read for
+  project-specific command/output conventions only.
+- **DEFAULT_OUTPUT_ROOT** — `<project>/lab/drafts/exp-<slug>-<date>-outputs/`.
+  Per-seed `train.log` (full stdout via `tee`) and `metrics.json` live below it.
 - **GPU_FREE_THRESHOLD = 500 MiB** — `memory.used` below this counts free.
 - **SANITY_MAX_RETRIES = 1** — re-run sanity at most once after a fix.
   Two consecutive sanity failures → STOP and ask for review.
 - **WALL_CLOCK_OVERRUN = 2.0** — flag at 2× of plan's expected runtime.
-- **BACKENDS = local | ssh** — MVP set. Vast.ai/Modal not in scope yet.
 
 ## Inputs
 
@@ -63,30 +63,25 @@ belongs to `monitor-experiment`. Claim extraction belongs to @librarian.
 4. `plan.question`, `plan.metrics`, and either `plan.baselines` or
    `plan.ablations` MUST be non-empty. Empty fields → stop and ask
    @prospector to complete the plan. Do not invent.
-5. If `plan.seeds` is null, default to `[42]` (single-seed run) and note
+5. The draft body MUST declare a launch command or command template
+   (commonly under `## Command` or `## Execution`). For relaunches, an
+   existing `run.command` is also acceptable. If no command is declared,
+   stop and ask @prospector / @coder to complete the experiment draft.
+6. If `plan.seeds` is null, default to `[42]` (single-seed run) and note
    that in the launch summary. Do not silently fan out.
 
-### Step 1 — Detect backend (HARD GATE)
+### Step 1 — Resolve launch conventions (HARD GATE)
 
-Read `<project>/AGENTS.md`. Look for an `## amore` or `### backend` section
-declaring:
+Read `<project>/AGENTS.md` for project-specific command/output conventions
+only. The current skill is local-only: if the user asks for SSH, Slurm,
+Vast.ai, Modal, or another remote integration, STOP and say that
+this release does not support that launch path yet.
 
-```yaml
-backend: local           # or: ssh
-ssh:                     # only when backend == ssh
-  host: <user@host>
-  cwd: <remote project root>
-  python: <remote python path, optional>
-wandb: false             # default
-runs_dir: <override>     # optional, otherwise DEFAULT_RUNS_DIR
-```
+Resolve `output_root`:
+1. Use an explicit output path from the draft body if it exists.
+2. Otherwise use `DEFAULT_OUTPUT_ROOT`.
 
-If `AGENTS.md` has no amore section → default to `backend: local`,
-`wandb: false`, `runs_dir: DEFAULT_RUNS_DIR`.
-
-For `backend: ssh`, verify reachability with `ssh -o BatchMode=yes
-<host> "echo ok"`. Unreachable → stop with a configuration error.
-Do not silently fall back to local.
+Record the final `output_root` in the draft body's `## Run` section.
 
 ### Step 2 — Working-tree gate (HARD GATE)
 
@@ -112,15 +107,12 @@ Never auto-commit without asking.
 
 ### Step 3 — Resource pre-flight (HARD GATE)
 
-1. Local backend:
-   - `nvidia-smi --query-gpu=index,memory.used --format=csv,noheader,nounits`
-     for CUDA; on Apple Silicon, fall back to `MPS_AVAILABLE` probe via
-     `python -c "import torch; print(torch.backends.mps.is_available())"`.
-   - Need `len(plan.seeds)` free devices. A device is free when
-     `memory.used < GPU_FREE_THRESHOLD`. If not enough free devices →
-     stop and ask whether to (a) wait, (b) reduce seeds, or (c) abort.
-2. SSH backend:
-   - Run the same probe over `ssh <host>`.
+1. `nvidia-smi --query-gpu=index,memory.used --format=csv,noheader,nounits`
+   for CUDA; on Apple Silicon, fall back to `MPS_AVAILABLE` probe via
+   `python -c "import torch; print(torch.backends.mps.is_available())"`.
+2. Need `len(plan.seeds)` free devices. A device is free when
+   `memory.used < GPU_FREE_THRESHOLD`. If not enough free devices →
+   stop and ask whether to (a) wait, (b) reduce seeds, or (c) abort.
 3. Bind devices explicitly. Pick the first N free indices and record them
    as `device_assignment: {seed -> gpu_index}`. Never bind a device
    without an explicit decision.
@@ -129,13 +121,14 @@ Never auto-commit without asking.
 
 Skip only if the user explicitly passed `--skip-sanity` in `$ARGUMENTS`.
 
-1. Compose a sanity command from the plan: same training script, one seed
+1. Compose a sanity command from the declared command template: same
+   training script, one seed
    (first of `plan.seeds`), smallest available config — minimum batch,
    minimum steps just enough to emit one metric line. If the plan does not
    declare a sanity variant, fall back to `--max-steps 50` (or the
    project's documented sanity flag in AGENTS.md).
 2. Run in the foreground on one bound device. Capture stdout via `tee` to
-   `<runs_dir>/sanity.log`.
+   `<output_root>/sanity.log`.
 3. Pass criteria:
    - Process exit code 0.
    - At least one parsed metric line for every metric in `plan.metrics`.
@@ -148,13 +141,13 @@ Skip only if the user explicitly passed `--skip-sanity` in `$ARGUMENTS`.
 
 For each seed in `plan.seeds`:
 
-1. Build the command:
+1. Build the command from the declared command template:
    ```
    CUDA_VISIBLE_DEVICES=<gpu_index> \
-     python <plan.command> \
+     <declared-command> \
        --seed <seed> \
-       --output-dir <runs_dir>/seed-<seed> \
-       2>&1 | tee <runs_dir>/seed-<seed>/train.log
+       --output-dir <output_root>/seed-<seed> \
+       2>&1 | tee <output_root>/seed-<seed>/train.log
    ```
    Adapt for Apple/MPS (`PYTORCH_ENABLE_MPS_FALLBACK=1`), and use the
    project's own seed/output-dir flag names if AGENTS.md documents them.
@@ -166,8 +159,7 @@ For each seed in `plan.seeds`:
 
 For each composed command:
 
-- Local: `screen -dmS <name> bash -lc "<command>"`.
-- SSH: `ssh <host> "cd <cwd> && screen -dmS <name> bash -lc '<command>'"`.
+- `screen -dmS <name> bash -lc "<command>"`.
 
 Right after each launch:
 
@@ -175,12 +167,6 @@ Right after each launch:
   equivalent). If a screen failed to start, mark that seed as
   `launch_failed` and continue with the rest. Surface failures in the
   summary; do not silently skip.
-
-W&B integration (only if AGENTS.md has `wandb: true`):
-
-- The training script handles its own W&B init. Do not inject W&B code
-  here. Just capture the project/entity strings from AGENTS.md into the
-  launch summary so monitor-experiment knows where to look.
 
 ### Step 7 — Update the exp draft
 
@@ -200,14 +186,13 @@ Inside the body, add or replace a `## Run` section:
 ```markdown
 ## Run
 
-- backend: local | ssh@<host>
+- location: local
 - devices: {42: 0, 7: 1, 1337: 2}
 - screens: exp-<slug>-<date>-s42, exp-<slug>-<date>-s7, exp-<slug>-<date>-s1337
-- runs_dir: runs/exp-<slug>-<date>/
+- output_root: lab/drafts/exp-<slug>-<date>-outputs/
 - sanity: pass (sanity.log, mean <metric>=<value>)
 - launched_at: <ISO 8601>
 - launched_by: run-experiment skill
-- wandb_project: <if any>
 ```
 
 Do not touch `plan`, `tests`, `idea_refs`, `claim_refs`, or any other
@@ -219,7 +204,7 @@ Append ONE entry, per D20 format:
 
 ```
 ## [YYYY-MM-DD HH:MM] update | exp:<slug>-<date> planned → running
-<N> seeds launched on <backend>. Sanity pass. Commit <short-hash>.
+<N> seeds launched locally. Sanity pass. Commit <short-hash>.
 Affected: [[exp:<slug>-<date>]]
 ```
 
@@ -239,7 +224,7 @@ Return this block to the caller verbatim:
 ```
 ## Launch
 exp: exp:<slug>-<date>
-backend: local | ssh@<host>
+location: local
 commit: <short-hash>
 sanity: pass | skipped
 
@@ -251,7 +236,7 @@ sanity: pass | skipped
 | 1337 | 2   | exp-<slug>-<date>-s1337           | running  |
 
 ## Estimated
-- runtime: ~<X> min per seed (from plan.expected_runtime, if any)
+- runtime: ~<X> min per seed (from the draft body, if declared)
 - wall_clock_overrun_at: <X * 2.0> min — flag from monitor
 
 ## Next
@@ -270,7 +255,7 @@ Input: `exp:grpo-warmup-2026-06-04`
 
 Process:
 - Step 0: draft found, `status: planned`, plan complete, seeds = [42, 7, 1337].
-- Step 1: AGENTS.md → `backend: local`, no W&B.
+- Step 1: local-only launch conventions resolved; output_root selected.
 - Step 2: git clean, HEAD = `9f3a21c`.
 - Step 3: 3 GPUs free (idx 0, 1, 2), bind them.
 - Step 4: sanity on seed=42, gpu=0, 50 steps, pass.
@@ -305,8 +290,8 @@ Process:
 exp: exp:cnn-baseline-2026-06-04
 last error: KeyError 'eval/accuracy' in train.py:184
 
-Draft NOT updated. Status remains 'planned'. Logs preserved at
-runs/exp-cnn-baseline-2026-06-04/sanity-*.log.
+Draft NOT updated. Status remains 'planned'. Logs preserved under
+lab/drafts/exp-cnn-baseline-2026-06-04-outputs/sanity-*.log.
 
 Suggested next: route to @coder for code review, or re-run after
 fixing the plan / training script.
@@ -314,26 +299,21 @@ fixing the plan / training script.
 
 No status flip. No log entry. Tree is left where it is.
 
-### Example 4 — SSH backend unreachable
+### Example 4 — unsupported remote launch request
 
 Input: `exp:big-grpo-2026-06-04`
 
 Process:
 - Step 0: pass.
-- Step 1: AGENTS.md declares `backend: ssh`, host `ml@workstation`.
-  `ssh -o BatchMode=yes ml@workstation "echo ok"` times out.
+- Step 1: user asks to launch on SSH / Slurm.
 - STOP. Skill returns:
 
 ```
-## Backend unreachable
-backend: ssh, host: ml@workstation
-probe: timeout after 5s
+## Unsupported launch target
+target: SSH / Slurm
 
-I will not silently fall back to local — that would change the run's
-recorded environment. Pick one:
-1. Bring the SSH host up and re-run.
-2. Edit AGENTS.md to backend: local and re-run.
-3. Pass --skip-backend-check if you accept the risk.
+This release of run-experiment is local-only. I will not silently launch a
+remote job because amore has no remote execution contract yet.
 ```
 
 ## Anti-patterns
@@ -343,11 +323,10 @@ recorded environment. Pick one:
 - Never skip the sanity stage unless `--skip-sanity` was explicitly passed.
 - Never auto-commit a dirty tree without asking. Commit/Stash/Abort is a
   user decision, not a default.
-- Never silently switch backend. SSH unreachable → stop, do not run local.
+- Never launch remote/SSH/Slurm jobs from this skill in the current release.
+  Stop and ask for explicit manual instructions instead.
 - Never bind a GPU without explicit availability check and explicit
   `CUDA_VISIBLE_DEVICES`. Implicit binding wastes seeds.
-- Never inject W&B code into training scripts. The training script owns
-  its W&B init; AGENTS.md just tells us where to look later.
 - Never write to other drafts (`claim-*`, `idea-*`, other `exp-*`). Only
   the target exp draft + `lab/log.md` + `lab/index.md`.
 - Never set `status: completed` here. That is `analyze-results`' job.
@@ -357,7 +336,8 @@ recorded environment. Pick one:
 - Never relaunch a `running` or `completed` exp without explicit
   "yes, overwrite" confirmation.
 - Never invent the project's seed/output-dir flag names. Read them from
-  AGENTS.md or from the existing training script; if unclear, ask.
+  AGENTS.md, the exp draft body, or the existing training script; if
+  unclear, ask.
 
 ## Related
 
@@ -374,5 +354,5 @@ recorded environment. Pick one:
 - The lab artifact schema (`<project>/lab/SCHEMA.md`,
   `src/lab/artifact-schema.ts`) — authoritative for exp frontmatter
   (`plan` / `run` / `results` / `status`).
-- `<project>/AGENTS.md` — authoritative for backend, W&B, and runs-dir
-  overrides. Read-only from this skill.
+- `<project>/AGENTS.md` — project-level instructions and command/output
+  conventions. Read-only from this skill.

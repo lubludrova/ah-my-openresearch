@@ -34,7 +34,7 @@ files in `<RAW_DIR>` (raw is immutable per the llm-wiki convention).
   (placeholder same as `librarian.ts` `<WIKI_PATH>`).
 - **WIKI_CONTRACT** — resolution order at session start:
   `<WIKI_PATH>/RULES.md`, then `<WIKI_PATH>/AGENTS.md`, then
-  `<WIKI_PATH>/README.md`, then `<WIKI_PATH>/ingest_prompt.md`.
+  `<WIKI_PATH>/README.md`.
 - **RAW_DIR** — resolution order:
   1. From wiki contract: a `raw_dir` / `sources_dir` field if declared.
   2. `<WIKI_PATH>/raw/` (llm-wiki convention; immutable).
@@ -106,7 +106,7 @@ Same gate as `wiki-ingest`:
 1. Read the wiki contract per WIKI_CONTRACT resolution order. If
    none exists → STOP with the same message wiki-ingest uses:
    "Wiki contract not found at `<WIKI_PATH>`. Create one (RULES.md
-   / AGENTS.md / README.md / ingest_prompt.md) before paper-search
+   / AGENTS.md / README.md) before paper-search
    can stage PDFs into the wiki."
 2. Resolve `RAW_DIR` per the constant order. If the contract
    explicitly forbids writes outside `inbox/` or similar, honor
@@ -412,7 +412,7 @@ Process:
 Input: `transformer scaling laws`
 
 Process:
-- Step 0: no RULES.md / AGENTS.md / README.md / ingest_prompt.md at
+- Step 0: no RULES.md / AGENTS.md / README.md at
   `<WIKI_PATH>`.
 - STOP. Return contract-missing message (same as wiki-ingest). Do
   not download PDFs anywhere without a contract telling us where.
@@ -478,9 +478,9 @@ Process:
   feed it indirectly via wiki-ingest, or directly via PDF path.
 - `wiki-lint` — health-check after batch ingest. Useful after
   paper-search + wiki-ingest of a small batch.
-- The user's wiki contract files (`<WIKI_PATH>/AGENTS.md`,
-  `ingest_prompt.md`, etc.) — authoritative for raw_dir location
-  and log format.
+- The user's wiki contract files (`<WIKI_PATH>/RULES.md`,
+  `<WIKI_PATH>/AGENTS.md`, or `<WIKI_PATH>/README.md`) —
+  authoritative for raw_dir location and log format.
 - ARIS reference skills:
   [research-lit](https://github.com/wanshuiyin/Auto-claude-code-research-in-sleep/blob/main/skills/skills-codex/research-lit/SKILL.md)
   (multi-source synthesis pattern, output table shape),

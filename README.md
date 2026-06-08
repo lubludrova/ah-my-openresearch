@@ -1,129 +1,293 @@
-# ah-my-openresearch  ·  `amore`
+# ah-my-openresearch (`amore`)
 
-> Research personas + skills + per-project lab + outside literature wiki for
-> OpenCode / Codex CLI / Claude Code. Built so research context **compounds
-> across sessions** instead of evaporating.
->
-> The name plays on `oh-my-openagent`: *ah-my-o...* → **amore** (Italian for
-> *love*). Research, with care.
+[![npm](https://img.shields.io/npm/v/ah-my-openresearch?style=flat-square)](https://www.npmjs.com/package/ah-my-openresearch)
+[![license](https://img.shields.io/npm/l/ah-my-openresearch?style=flat-square)](LICENSE)
+[![OpenCode](https://img.shields.io/badge/OpenCode-plugin-111827?style=flat-square)](https://opencode.ai/)
 
-## Quickstart
+OpenCode-first research workspace for ML/RL projects: six research personas,
+17 bundled skills, a per-project lab contract, and an outside literature wiki.
+
+`amore` is not a general coding-agent preset. It is a research lifecycle layer:
+papers become claims, claims motivate ideas, ideas become experiments, and
+experiment results flow back into citable claims.
+
+## Quick Start
 
 ```bash
-cd ~/dev/my-new-project
+cd ~/dev/my-research-project
 bunx ah-my-openresearch install
+opencode
 ```
 
-That single command scaffolds a per-project research lab, points the
-librarian at your literature wiki, creates a project-level `AGENTS.md`,
-and (if you have Obsidian's Local REST API plugin running) wires it up as
-an MCP. See
-[`docs/installation.md`](docs/installation.md) for prerequisites and
-configuration details.
+In OpenCode, start with `@orchestrator` or call a specialist directly:
+
+```text
+@librarian ingest this paper into my wiki and extract claims
+@prospector find gaps in the current lab and propose experiments
+@coder run the planned experiment
+@writer outline the paper from supported claims
+```
+
+Validate the project at any time:
 
 ```bash
-amore install --help        # all flags
-amore doctor                # validate the lab contract
+amore doctor
 ```
 
-## What you get
+## What Install Creates
 
-**Six research personas** loaded as OpenCode subagents the moment your host
-CLI starts in the project:
+`amore install` is project-local. It does not modify
+`~/.config/opencode/opencode.json`.
 
-| Persona | Role |
+```text
+my-project/
+├── AGENTS.md           project-level research rules
+├── opencode.json       OpenCode project config
+└── lab/
+    ├── README.md       lab operating notes
+    ├── SCHEMA.md       artifact and edge contract
+    ├── config.json     amore project config
+    ├── drafts/         agent-written claim/idea/experiment drafts
+    ├── edges.jsonl     typed graph between artifacts
+    ├── index.md        generated catalog
+    └── log.md          append-only changelog
+```
+
+If an `opencode.json` already exists, install preserves user fields and adds
+only the entries `amore` needs. Before updating it, install writes an
+`opencode.json.bak*` backup and then commits the new content through a
+temp-file rename.
+
+## Personas
+
+| Persona | Mode | Role |
+|---|---:|---|
+| `@orchestrator` | primary/subagent | Intake, routing, handoff summaries |
+| `@librarian` | primary/subagent | Literature wiki, paper ingest, claim extraction |
+| `@prospector` | primary/subagent | Gaps, ideas, novelty checks, experiment plans |
+| `@coder` | primary/subagent | Implement, run, monitor, analyze experiments |
+| `@council` | primary/subagent | Multi-model critique and adversarial review |
+| `@writer` | primary/subagent | Paper plan, figures, audits, drafting support |
+
+The installer also disables OpenCode's default `build` and `plan` agents inside
+the project. `amore` routes research work through the six personas above.
+
+## Skills
+
+The package ships 17 `SKILL.md` bundles. Install exposes them to OpenCode via
+`skills.paths`; `amore doctor` checks that every bundled skill exists and has
+valid frontmatter.
+
+| Area | Skills |
 |---|---|
-| `orchestrator` | Intake, routing, handoff summaries |
-| `librarian` | Reads/writes your literature wiki, extracts claims with provenance |
-| `prospector` | Ideation, novelty checks, experiment planning |
-| `coder` | Implementation, run, monitor, finalize |
-| `council` | Multi-LLM critique with deterministic verdict |
-| `writer` | Paper plan, figure generation, claim/citation audits |
+| Intake | `intake-dispatch-summary` |
+| Literature | `paper-search`, `wiki-ingest`, `wiki-lint`, `claim-extract` |
+| Ideation | `gap-map`, `idea-creator`, `novelty-vs-wiki`, `research-refine` |
+| Experiments | `run-experiment`, `monitor-experiment`, `analyze-results` |
+| Review | `council-session`, `paper-audit`, `contradiction-check` |
+| Writing | `paper-plan`, `paper-figure` |
 
-**Per-project research lab** at `<project>/lab/` — five root files plus
-`drafts/` for `claim-*.md`, `idea-*.md`, `exp-*.md`. Every artifact carries
-a typed frontmatter (`status`, `confidence`, `provenance`,
-`supports`/`contradicts`/`tested_by`) and links into a minimal
-`edges.jsonl` graph. `amore doctor` validates the layout, the schema, and
-broken cross-references at any time.
+Persona skill allowlists are explicit. For example, `@prospector` can use
+ideation skills plus `paper-search`, `claim-extract`, and `analyze-results`;
+`@orchestrator` can route to all bundled skills.
 
-**Two-tier knowledge architecture**:
+## Lab Contract
 
-- **Outside literature wiki** (e.g. `~/RL-Wiki`) — cross-project paper
-  notes, concept pages, MoCs. The librarian reads it under the wiki's own
-  contract (`<wiki>/RULES.md` or `AGENTS.md`).
-- **Per-project lab** (`<project>/lab/`) — atomic claims with provenance,
-  ideas with target gaps, experiments with plan / run / results. Grows with
-  the project, never bleeds into the literature wiki.
+The lab is the project-local research record.
 
-**Curated skill bundles** (17 markdown skills) covering literature
-ingestion, claim extraction, ideation, experiment lifecycle, multi-LLM
-council review, and paper-audit workflows. Inspired by proven patterns
-from ARIS, claude-octopus, and academic-research-skills; sources cited per
-skill in `design/Skill Catalog.md`.
+- `lab/drafts/claim-*.md`: atomic claims with provenance and confidence.
+- `lab/drafts/idea-*.md`: hypotheses, target gaps, and planned experiments.
+- `lab/drafts/exp-*.md`: plan, run metadata, metrics, and result summaries.
+- `lab/edges.jsonl`: typed graph facts such as `supports`,
+  `contradicts`, `addresses_gap`, and `tested_by`.
+- `lab/index.md`: generated catalog; do not edit by hand.
 
-**Write boundary** — a `tool.execute.before` hook stops agents from writing
-protected files inside `<project>/lab/`; agent-written research artifacts
-land in `drafts/`, with allowed appends to `log.md` / `edges.jsonl` and
-regeneration of `index.md`. Future canon/promote machinery slots in here.
+A write-boundary hook protects core lab files. Agents may write research
+artifacts under `lab/drafts/`, append to `lab/log.md` and `lab/edges.jsonl`,
+and regenerate `lab/index.md`. Files such as `lab/SCHEMA.md` and future
+`lab/canon/**` paths are protected.
 
-## Concepts
+## Literature Wiki
 
-- **Claim with provenance.** Not summaries — every claim cites the wiki
-  page or experiment it came from, plus a confidence level (`low`/`medium`/
-  `high`). Re-readable a year later.
-- **Idea → experiment → claim cycle.** Ideas declare `target_gaps` and
-  `hypothesis`. Experiments link back via `idea_refs` and `tests`. After
-  the run, claims gain `tested_by` and the graph closes.
-- **Strict edge directions.** `contradicts` requires `claim → claim`,
-  `addresses_gap` requires `idea → claim`, etc. Wrong direction → doctor
-  fails the validation.
-- **Wiki contract.** Librarian reads `<wiki>/RULES.md` (or `AGENTS.md`)
-  at session start; the wiki's own conventions (naming, frontmatter, log
-  format) win.
+`amore` keeps literature memory outside the project. A common setup is:
 
-## Configuration
+```text
+~/RL-Wiki/
+├── RULES.md
+├── raw/
+└── wiki/
+```
 
-`amore install` writes a project-level `opencode.json` and `AGENTS.md`.
-Provider, model, and global MCPs continue to come from
-`~/.config/opencode/opencode.json`. The configs compose at load time.
+During install, choose one of:
+
+- use an existing markdown/Obsidian wiki;
+- create a starter `./llm-wiki/` inside the project;
+- skip wiki setup.
+
+The librarian reads the first wiki contract file that exists:
+
+1. `<wiki>/RULES.md`
+2. `<wiki>/AGENTS.md`
+3. `<wiki>/README.md`
+
+If no contract exists, the librarian asks for one before writing. It does not
+invent a private wiki schema.
+
+## OpenCode Config
+
+A minimal generated `opencode.json` looks like this:
 
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
   "plugin": ["ah-my-openresearch"],
-  "instructions": ["AGENTS.md"]
+  "instructions": ["AGENTS.md"],
+  "default_agent": "orchestrator",
+  "agent": {
+    "build": { "disable": true },
+    "plan": { "disable": true }
+  },
+  "skills": {
+    "paths": ["/absolute/path/to/ah-my-openresearch/src/skills"]
+  }
 }
 ```
 
-If your literature wiki has Obsidian's Local REST API plugin installed,
-amore can auto-wire its MCP entry. See
-[`docs/installation.md`](docs/installation.md#setting-up-the-obsidian-local-rest-api-plugin).
+With Obsidian MCP auto-wired, install also adds:
+
+```json
+{
+  "mcp": {
+    "obsidian": {
+      "type": "local",
+      "command": ["bunx", "obsidian-mcp-server@latest"],
+      "environment": {
+        "OBSIDIAN_API_KEY": "...",
+        "OBSIDIAN_BASE_URL": "https://127.0.0.1:27124",
+        "OBSIDIAN_VERIFY_SSL": "false"
+      }
+    }
+  }
+}
+```
+
+Global provider/model settings still live in your normal OpenCode config.
+Project `opencode.json` only wires `amore` into this project.
+
+## CLI
+
+```bash
+amore install [--lab-dir <path>]
+              [--literature-wiki <path> | --no-wiki]
+              [--with-obsidian-mcp]
+              [--reconcile]
+              [--no-bootstrap]
+
+amore doctor [--lab-dir <path>] [--repair] [--json]
+```
+
+Important flags:
+
+| Flag | Meaning |
+|---|---|
+| `--literature-wiki <path>` | Use an existing wiki path and skip prompts |
+| `--no-wiki` | Do not write `literature_wiki_path` |
+| `--with-obsidian-mcp` | Wire `mcp.obsidian` from Obsidian Local REST API data |
+| `--reconcile` | Write `.new` candidates for lab docs that differ |
+| `--no-bootstrap` | Create only the lab layout |
+| `doctor --repair` | Regenerate safe lab files and `index.md` |
+| `doctor --json` | Emit machine-readable diagnostics |
+
+## Doctor Checks
+
+`amore doctor` validates both the lab and the host wiring:
+
+- lab layout files exist;
+- draft frontmatter matches the strict schema;
+- `edges.jsonl` lines parse and point at existing draft nodes;
+- `index.md` is generated and current;
+- `opencode.json` loads `ah-my-openresearch`;
+- `AGENTS.md` is referenced and present;
+- `default_agent` is `orchestrator`;
+- OpenCode `build` and `plan` are disabled;
+- bundled `skills.paths` exists and all 17 skills parse.
+
+Exit codes:
+
+| Code | Meaning |
+|---:|---|
+| `0` | clean |
+| `1` | errors |
+| `2` | warnings only |
+
+## Troubleshooting
+
+**OpenCode still shows `Build` or `Plan`.**
+Run `amore install` again, then `amore doctor`. The project `opencode.json`
+must contain `agent.build.disable: true` and `agent.plan.disable: true`.
+
+**OpenCode does not show amore skills.**
+Check `amore doctor`. It verifies that `skills.paths` includes the package's
+bundled skills directory and that all 17 `SKILL.md` files parse.
+
+**Install warns that `opencode.json` could not be parsed.**
+The existing file was left unchanged. Fix the JSON syntax and re-run install.
+
+**The librarian says the wiki contract is missing.**
+Add `<wiki>/RULES.md`, `<wiki>/AGENTS.md`, or `<wiki>/README.md` describing
+the wiki naming convention, frontmatter, and write rules.
+
+**Obsidian MCP does not auto-wire.**
+Open the target vault in Obsidian, enable the Local REST API community plugin,
+then re-run install with `--with-obsidian-mcp`.
+
+## Development
+
+```bash
+bun install
+bun run build
+bun run typecheck
+bun test
+bun run check:ci
+```
+
+The package is TypeScript + Bun, with Zod schemas and Biome checks.
 
 ## Status
 
-Pre-v1, post-MVP. Core contract, personas, skills, CLI, and write
-boundary are all shipped and exercised by ~150 tests.
+Pre-v1, OpenCode-first.
 
-- **Active:** literature → claim draft loop, idea + experiment drafts,
-  edge graph, doctor validation.
-- **In progress:** Wave 2 prospector skills exist as drafts pending
-  lock-in (`gap-map`, `idea-creator`, `novelty-vs-wiki`,
-  `research-refine`).
-- **Post-MVP (planned):** `canon/` promote workflow, contradiction-check
-  on local semantic memory, RL domain pack.
+Shipped:
 
-For the forward plan see [`ROADMAP.md`](ROADMAP.md); for what shipped per
-phase see [`CHANGELOG.md`](CHANGELOG.md). Canonical product decisions
-(D1–D27) live in `design/Product Design.md` (gitignored).
+- six personas;
+- 17 bundled skills;
+- project install/bootstrap;
+- `AGENTS.md` template;
+- OpenCode config merge with backup/temp write;
+- `amore doctor` lab and OpenCode wiring checks;
+- write-boundary hook for protected lab paths.
 
-## Pattern source
+In progress:
 
-Architecture follows
-[`alvinunreal/oh-my-opencode-slim`](https://github.com/alvinunreal/oh-my-opencode-slim)
-(focused OpenCode plugin, Bun + TS, MIT). Differentiators: project-local
-lab contract, two-tier knowledge architecture, claim-level provenance,
-strict edge schema, declarative domain packs (RL first).
+- council runtime hardening;
+- stronger assurance/reviewer contracts;
+- release smoke tests;
+- one full user guide;
+- optional Codex/Claude skill export.
+
+## Pattern Sources
+
+`amore` takes different lessons from two reference projects:
+
+- [ARIS](https://github.com/wanshuiyin/Auto-claude-code-research-in-sleep):
+  rich research workflows, Markdown skill contracts, cross-model review, and
+  persistent research memory.
+- [oh-my-opencode-slim](https://github.com/alvinunreal/oh-my-opencode-slim):
+  OpenCode-native plugin shape, installer ergonomics, agent routing, and skill
+  permissions.
+
+The differentiator is the combination: OpenCode-native personas plus a
+project-local lab and outside literature wiki with claim-level provenance.
 
 ## License
 

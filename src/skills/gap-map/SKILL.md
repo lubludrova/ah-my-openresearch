@@ -106,7 +106,6 @@ Look for these files under `<WIKI_PATH>`:
 1. `RULES.md`
 2. `AGENTS.md`
 3. `README.md`
-4. `ingest_prompt.md`
 
 Use the first explicit schema or workflow instructions you find. If multiple
 files exist, prefer direct wiki operating rules over general repository notes. If

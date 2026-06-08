@@ -1,7 +1,17 @@
 ---
 name: claim-extract
-description: Materialize lab-side claim drafts from a finalized experiment. Reads `exp-<slug>-<date>.md` with `status: completed | failed | abandoned`, calibrates confidence from n_seeds + Δ vs σ_pool + integrity-audit status, applies the status-transition matrix (create new claim / update existing claim / contradict existing claim / supersede), enforces allowed-wording rules (hedging matches evidence, no AI-isms, bounded scope, ≤120 char title), and writes valid `claim-*.md` drafts plus the supporting edges in `edges.jsonl`. Optional secondary cross-model judge (ARIS pattern) prevents self-rationalization. Use when user says "extract claims from exp:<id>", "materialize the result", "record this finding as a claim", "promote results to claims", or when @librarian receives the "candidate claim hooks" handoff from @coder analyze-results. Lab-side only — literature claims are handled by wiki-ingest's Step B during paper ingest.
-argument-hint: <exp-id> [--max-claims N] [--judge <model>] [--update | --create] [--dry-run]
+description: >-
+  Materialize lab-side claim drafts from a finalized experiment. Reads
+  `exp-<slug>-<date>.md` with `status: completed | failed | abandoned`,
+  calibrates confidence from n_seeds + delta vs sigma_pool + integrity-audit
+  status, applies the status-transition matrix, enforces allowed-wording rules,
+  and writes valid `claim-*.md` drafts plus the supporting edges in
+  `edges.jsonl`. Use when user says "extract claims from exp:<id>",
+  "materialize the result", "record this finding as a claim", "promote results
+  to claims", or when @librarian receives the "candidate claim hooks" handoff
+  from @coder analyze-results. Lab-side only; literature claims are handled by
+  wiki-ingest's Step B during paper ingest.
+argument-hint: "<exp-id> [--max-claims N] [--judge <model>] [--update | --create] [--dry-run]"
 ---
 
 # Claim Extract

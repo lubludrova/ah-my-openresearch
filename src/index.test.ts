@@ -3,6 +3,7 @@
 // opencodeConfig, then asserts the resulting agent / MCP shape.
 
 import { describe, expect, test } from 'bun:test';
+import { existsSync } from 'node:fs';
 import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -10,6 +11,7 @@ import amorePlugin from './index';
 
 interface FakeOpencodeConfig {
   agent?: Record<string, unknown>;
+  default_agent?: string;
   mcp?: Record<string, unknown>;
   skills?: { paths?: string[] };
 }
@@ -57,23 +59,19 @@ describe('amore plugin — config hook', () => {
     expect(agent.build.disable).toBe(true);
     expect(agent.plan).toBeDefined();
     expect(agent.plan.disable).toBe(true);
+    expect(cfg.default_agent).toBe('orchestrator');
   });
 
-  test('preserves a user-supplied `build` entry (does not force disable)', async () => {
+  test('forces disabled defaults even when another plugin touched them first', async () => {
     const cfg = await runPluginConfigHook({
-      agent: { build: { model: 'openai/gpt-4o' } as Record<string, unknown> },
+      agent: {
+        build: { model: 'openai/gpt-4o' } as Record<string, unknown>,
+        plan: { temperature: 0.7 } as Record<string, unknown>,
+      },
     });
     const agent = (cfg.agent ?? {}) as Record<string, Record<string, unknown>>;
-    // user-supplied entry wins; no `disable: true` injected.
-    expect(agent.build).toEqual({ model: 'openai/gpt-4o' });
-  });
-
-  test('preserves a user-supplied `plan` entry', async () => {
-    const cfg = await runPluginConfigHook({
-      agent: { plan: { temperature: 0.7 } as Record<string, unknown> },
-    });
-    const agent = (cfg.agent ?? {}) as Record<string, Record<string, unknown>>;
-    expect(agent.plan).toEqual({ temperature: 0.7 });
+    expect(agent.build).toEqual({ model: 'openai/gpt-4o', disable: true });
+    expect(agent.plan).toEqual({ temperature: 0.7, disable: true });
   });
 
   test('registers obsidian + basic-memory MCPs', async () => {
@@ -100,13 +98,13 @@ describe('amore plugin — config hook', () => {
       string,
       { mode?: string; model?: string; prompt?: string; skills?: string[] }
     >;
-    expect(agent.orchestrator.mode).toBe('primary');
+    expect(agent.orchestrator.mode).toBe('all');
     expect(typeof agent.orchestrator.model).toBe('string');
     expect(typeof agent.orchestrator.prompt).toBe('string');
     expect(agent.orchestrator.skills).toEqual(['*']);
     expect(agent.prospector.skills).toContain('claim-extract');
     expect(agent.prospector.skills).toContain('paper-search');
-    expect(agent.librarian.mode).toBe('subagent');
+    expect(agent.librarian.mode).toBe('all');
     expect(agent.council.mode).toBe('all');
     expect(agent.writer.mode).toBe('all');
   });
@@ -116,8 +114,20 @@ describe('amore plugin — config hook', () => {
       skills: { paths: ['/custom/skills'] },
     });
     expect(cfg.skills?.paths).toContain('/custom/skills');
-    expect(cfg.skills?.paths?.some((path) => path.endsWith('src/skills'))).toBe(
+    const bundledPath = cfg.skills?.paths?.find((path) =>
+      path.endsWith('src/skills'),
+    );
+    expect(bundledPath).toBeDefined();
+    expect(existsSync(expectString(bundledPath))).toBe(true);
+    expect(existsSync(join(expectString(bundledPath), 'wiki-ingest'))).toBe(
       true,
     );
   });
 });
+
+function expectString(value: string | undefined): string {
+  if (value === undefined) {
+    throw new Error('expected a string');
+  }
+  return value;
+}

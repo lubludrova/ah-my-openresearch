@@ -1,7 +1,15 @@
 ---
 name: paper-audit
-description: Umbrella audit for a paper draft. Three independent phases — claim audit (every quantitative claim in the .tex traced back to raw result files in lab/drafts/exp-*.md), citation audit (every \cite{key} verified for existence + metadata + context-appropriateness via DBLP/CrossRef/arXiv), and optional experiment audit (eval code scanned for fake ground truth, score-normalization fraud, phantom results, scope mismatch). Each phase uses a fresh, cross-model reviewer to prevent self-judging bias. Output JSON ledger + Markdown report with per-item verdicts (KEEP/FIX/REPLACE/REMOVE for citations; PASS/WARN/FAIL for claims and experiments). Advisory only — never blocks; downstream personas / user decide what to apply. Use when user says "audit the paper", "check the citations", "verify the numbers", "pre-submission audit", or when @writer reaches Phase 5 audit, or when @council needs an independent integrity check before adversarial review.
-argument-hint: [<paper-dir>] [--only claim,citation,experiment] [--soft-only] [--uncited] [--reviewer <model>]
+description: >-
+  Umbrella audit for a paper draft. Three independent phases: claim audit,
+  citation audit, and optional experiment audit. Each phase uses a fresh,
+  cross-model reviewer to prevent self-judging bias. Output JSON ledger and
+  Markdown report with per-item verdicts. Advisory only; downstream personas or
+  the user decide what to apply. Use when user says "audit the paper", "check
+  the citations", "verify the numbers", "pre-submission audit", or when
+  @writer reaches Phase 5 audit, or when @council needs an independent integrity
+  check before adversarial review.
+argument-hint: "[<paper-dir>] [--only claim,citation,experiment] [--soft-only] [--uncited] [--reviewer <model>]"
 ---
 
 # Paper Audit

@@ -1,6 +1,6 @@
 ---
 name: monitor-experiment
-description: Poll a running experiment and produce a per-seed verdict (CONTINUE / WAIT / STOP). Read screens, tee logs, JSON metric files, and optionally W&B; compute training-quality checks (NaN/Inf, sustained divergence, plateau, wall-clock overrun); return a structured status report and, when all seeds have exited cleanly, hint to finalize via analyze-results. Read-only — never writes the exp draft or kills jobs. Use when user says "how is exp:<slug> going", "check progress", "monitor exp:<slug>", "is training healthy", or when the orchestrator routes an `experiment-monitor` category task to @coder.
+description: Poll a running experiment and produce a per-seed verdict (CONTINUE / WAIT / STOP). Read local screens, tee logs, and JSON/CSV metric files; compute training-quality checks (NaN/Inf, sustained divergence, plateau, wall-clock overrun); return a structured status report and, when all seeds have exited cleanly, hint to finalize via analyze-results. Read-only — never writes the exp draft or kills jobs. Use when user says "how is exp:<slug> going", "check progress", "monitor exp:<slug>", "is training healthy", or when the orchestrator routes an `experiment-monitor` category task to @coder.
 argument-hint: <exp-id> | <natural-language-ref>
 ---
 
@@ -13,7 +13,7 @@ Target: $ARGUMENTS
 Pulse-check a running experiment. You are the inspector, not the launcher
 or the finaliser:
 
-- Collect live evidence (screens, logs, JSON, optional W&B).
+- Collect live evidence (screens, logs, JSON/CSV metrics).
 - Apply training-quality checks (NaN/Inf, divergence, plateau, overrun).
 - Emit a CONTINUE / WAIT / STOP verdict per seed.
 - Hint when ready to finalize.
@@ -27,16 +27,16 @@ per its prompt.
 
 - **LAB_DRAFTS** — `<project>/lab/drafts/`. Read exp drafts here.
 - **LAB_INDEX** — `<project>/lab/index.md`. Read for inventory.
-- **PROJECT_AGENTS** — `<project>/AGENTS.md`. Backend + wandb config.
-- **DEFAULT_RUNS_DIR** — `<project>/runs/exp-<slug>-<date>/seed-<N>/`.
+- **PROJECT_AGENTS** — `<project>/AGENTS.md`. Project instructions.
+- **DEFAULT_OUTPUT_ROOT** — `<project>/lab/drafts/exp-<slug>-<date>-outputs/`.
   Same convention as `run-experiment`.
 - **TAIL_LINES = 100** — Log tail read per screen / per check.
 - **PLATEAU_WINDOW = 200** — Last N steps used to detect plateau.
 - **PLATEAU_EPS = 1e-4** — `|max − min|` over the window below this = plateau.
 - **DIVERGENCE_RUN = 5** — N consecutive eval points where the primary
   metric moves the wrong direction → divergence.
-- **WALL_CLOCK_OVERRUN = 2.0** — Multiply by `plan.expected_runtime` (if
-  declared) to compute the overrun flag time.
+- **WALL_CLOCK_OVERRUN = 2.0** — Multiply by expected runtime if the draft
+  body declares one. Otherwise omit the overrun check.
 
 ## Inputs
 
@@ -60,16 +60,13 @@ per its prompt.
    - "Already finalized (`<status>`). The last run section is from
      `<run.started_at>`. Did you mean analyze-results or a re-launch?"
 3. Read the body's `## Run` section (written by run-experiment) for:
-   `backend`, `devices`, `screens`, `runs_dir`, `wandb_project` (if any),
-   `launched_at`.
+   `location`, `devices`, `screens`, `output_root`, and `launched_at`.
 
-### Step 1 — Detect backend
+### Step 1 — Verify launch location
 
-Re-read `<project>/AGENTS.md`'s `## amore` block to confirm backend and
-W&B settings agree with what's recorded in the draft body. Mismatch
-(e.g. draft says `local`, AGENTS now says `ssh`) → surface as a warning
-in the report; do not silently re-route the probe. Keep monitoring the
-backend recorded in the draft.
+The current skill supports local screens only. If the draft's `## Run`
+section records another location, STOP and say the current monitor skill
+cannot inspect that run yet. Do not silently probe a different location.
 
 ### Step 2 — Collect per-seed evidence
 
@@ -77,9 +74,8 @@ For each `(seed, screen)` pair in the draft body's screens list:
 
 #### Step 2a — Screen liveness
 
-- Local: `screen -ls | grep <screen>` and, if present, find the inner
-  PID via `screen -S <screen> -X writebuf` then `ps -o pid= -p ...`.
-- SSH: same wrapped in `ssh <host> "..."`.
+- `screen -ls | grep <screen>` and, if present, find the inner PID via
+  `screen -S <screen> -X writebuf` then `ps -o pid= -p ...`.
 
 Map state:
 
@@ -88,13 +84,13 @@ Map state:
 | present | alive     | `running`           |
 | present | gone      | `screen-orphan`     |
 | absent  | —         | `screen-gone`       |
-| timeout / ssh error | — | `probe-failed`    |
+| timeout / probe error | — | `probe-failed`    |
 
 #### Step 2b — Tail the log
 
 For `running`, `screen-orphan`, and `screen-gone`:
 
-- Read last `TAIL_LINES` lines of `<runs_dir>/seed-<N>/train.log`.
+- Read last `TAIL_LINES` lines of `<output_root>/seed-<N>/train.log`.
 - Parse metric lines per the plan's metric names. If the project uses
   structured logs (JSON-per-line) prefer that; otherwise fall back to
   regex on the human-readable training output.
@@ -104,26 +100,9 @@ emitting metrics. Surface explicitly.
 
 #### Step 2c — Read metrics file (if present)
 
-If `<runs_dir>/seed-<N>/metrics.json` (or `.csv`) exists, read it as the
+If `<output_root>/seed-<N>/metrics.json` (or `.csv`) exists, read it as the
 preferred truth source — files outlive screens. Keep stdout-tail metrics
 as fallback.
-
-#### Step 2d — W&B (optional; only if AGENTS.md `wandb: true`)
-
-For each seed, if a W&B run id was recorded (typical: in `train.log`
-as `wandb: Syncing run <id>`):
-
-```python
-import wandb
-api = wandb.Api()
-run = api.run(f"<entity>/<project>/{run_id}")
-history = list(run.history(samples=50, keys=plan.metrics + ["train/loss"]))
-summary = dict(run.summary)
-```
-
-- If W&B is configured but unreachable → note connectivity issue and
-  fall back to log/json evidence. Do NOT treat missing W&B as failure.
-- Always capture `run.url` for the report.
 
 ### Step 3 — Training-quality checks per seed
 
@@ -139,15 +118,15 @@ on the first STOP-level finding; do not double-report.
 #### Sustained divergence → STOP
 
 - For the plan's primary metric (first entry of `plan.metrics`), if the
-  last `DIVERGENCE_RUN` consecutive eval points move opposite to
-  `plan.success_direction` (default: assume "lower is better" if metric
+  last `DIVERGENCE_RUN` consecutive eval points move opposite to the
+  draft's documented success direction (default: assume "lower is better" if metric
   contains "loss" / "bpb" / "error"; else "higher is better"; if unclear,
   treat as WAIT and report).
 - Plateau alone is NOT divergence. Plateau is WAIT.
 
 #### Wall-clock overrun → flag (not STOP by itself)
 
-- If `plan.expected_runtime` is declared, compute deadline =
+- If the draft body declares expected runtime, compute deadline =
   `launched_at + WALL_CLOCK_OVERRUN * expected_runtime`.
 - If now > deadline AND seed still `running`, flag in the report and add
   a WAIT recommendation. Escalate to STOP only if combined with another
@@ -193,10 +172,9 @@ Return this block verbatim:
 ```
 ## Monitor
 exp: exp:<slug>-<date>
-backend: local | ssh@<host>
+location: local
 launched: <relative ago> (at <launched_at>)
 elapsed: <Xm>  expected: <Ym> (overrun threshold <Zm>)
-wandb: <run.url> | n/a
 
 ## Per-seed
 | seed | screen-state    | last step | <primary metric> | other metrics      | verdict   |
@@ -246,7 +224,7 @@ Too early — no metric lines yet (run elapsed: <Xs>). Recheck in ~1 min.
 Input: `exp:grpo-warmup-2026-06-04`
 
 - 3 seeds, all `running`, fresh metric lines, no NaN, no divergence,
-  loss trending down. No W&B.
+  loss trending down.
 - Output: per-seed table, all `CONTINUE`, no Action urgency, elapsed
   ~30% of expected.
 
@@ -272,16 +250,7 @@ All seeds finished cleanly. Ready to finalize.
 → @coder analyze-results exp:<slug>-<date>
 ```
 
-### Example 4 — W&B reachable, log fallback used
-
-Input: `exp:cnn-baseline-2026-06-04`
-
-- AGENTS.md has `wandb: true`. W&B API is slow but reachable for
-  seed=42, times out for seed=7.
-- Skill reports W&B data for 42 and log-based metrics for 7, flags
-  partial connectivity, recommends WAIT.
-
-### Example 5 — too-early call
+### Example 4 — too-early call
 
 Input: `exp:big-grpo-2026-06-04`
 
@@ -305,15 +274,14 @@ Too early — no metric lines yet (run elapsed: 40s). Recheck in ~1 min.
 - Never declare success. CONTINUE means "still going, no obvious issue",
   not "this experiment supports its claim". That verdict is for
   analyze-results.
-- Never declare failure on missing W&B alone. Fall back to logs.
-- Never silently re-route the probe to a different backend than the one
-  recorded in the draft. Mismatch → warn, keep probing the recorded one.
+- Never silently inspect a different launch location than the one recorded
+  in the draft. Unsupported location → stop.
 - Never invent metric names or success directions. Use `plan.metrics` and
   a documented heuristic; if unclear, report and ask.
 - Never run analyze-results yourself. You only HINT it.
 - Never collect evidence into a private cache the user can't see. Quote
-  log paths, screen names, and W&B URLs explicitly in the report so the
-  user can independently verify.
+  log paths and screen names explicitly in the report so the user can
+  independently verify.
 
 ## Related
 
@@ -321,11 +289,10 @@ Too early — no metric lines yet (run elapsed: 40s). Recheck in ~1 min.
   matrix philosophy and the rule "monitor is read-only". This skill
   implements the procedure.
 - `run-experiment` — wrote the `## Run` section in the draft body that
-  this skill relies on (devices, screens, runs_dir, wandb_project).
+  this skill relies on (location, devices, screens, output_root).
 - `analyze-results` — the next step after a successful finalize hint.
 - `intake-dispatch-summary` — classifies `experiment-monitor` requests
   and routes to @coder, which then picks this skill.
 - The lab artifact schema (`<project>/lab/SCHEMA.md`,
   `src/lab/artifact-schema.ts`) — authoritative for exp frontmatter.
-- `<project>/AGENTS.md` — authoritative for backend, W&B, and runs-dir
-  overrides.
+- `<project>/AGENTS.md` — project-level instructions.

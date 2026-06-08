@@ -97,7 +97,6 @@ Read the wiki contract before interpreting wiki pages. Look under
 1. `RULES.md`
 2. `AGENTS.md`
 3. `README.md`
-4. `ingest_prompt.md`
 
 Use explicit wiki rules when present. If no contract exists, use a
 read-only Markdown fallback and say the wiki contract was missing.
@@ -381,8 +380,8 @@ Hard forbids:
 - `src/skills/research-refine/SKILL.md` — downstream proposal refinement.
 - `src/skills/experiment-plan/SKILL.md` — downstream experiment planning.
 - `src/skills/wiki-ingest/SKILL.md` — wiki/lab literature ingestion.
-- `<WIKI_PATH>/RULES.md`, `<WIKI_PATH>/AGENTS.md`, `<WIKI_PATH>/README.md`,
-  `<WIKI_PATH>/ingest_prompt.md` — runtime wiki contract sources.
+- `<WIKI_PATH>/RULES.md`, `<WIKI_PATH>/AGENTS.md`, and
+  `<WIKI_PATH>/README.md` — runtime wiki contract sources.
 - Source patterns: ARIS `novelty-check`, ARIS `patent-novelty-check`,
   AI-Scientist novelty loop, obsidian-wiki `wiki-query`, obsidian-wiki
   `wiki-dedup`, llm-wiki wiki manager, claude-octopus `skill-council`,

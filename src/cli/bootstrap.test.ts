@@ -1,7 +1,13 @@
 // Unit coverage for the install bootstrap step.
 
 import { afterEach, describe, expect, test } from 'bun:test';
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  writeFileSync,
+} from 'node:fs';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
@@ -78,6 +84,10 @@ describe('bootstrapProjectConfig — basics', () => {
     expect(written).toContain('lab_dir: lab');
     expect(written).toContain('literature_wiki_path: "~/RL-Wiki"');
     expect(written).toContain('~/RL-Wiki/RULES.md');
+    expect(written).not.toContain('backend:');
+    expect(written).not.toContain('runs_dir');
+    expect(written).not.toContain('wandb');
+    expect(written).not.toContain('ingest_prompt.md');
   });
 
   test('prefers RL-Wiki over PM-Wiki on auto-detect', async () => {
@@ -134,6 +144,15 @@ describe('bootstrapProjectConfig — basics', () => {
     expect(written.plugin).toEqual(['ah-my-openresearch']);
     expect(written.instructions).toEqual(['AGENTS.md']);
     expect(written.$schema).toBe('https://opencode.ai/config.json');
+    expect(written.default_agent).toBe('orchestrator');
+    expect(written.agent.build.disable).toBe(true);
+    expect(written.agent.plan.disable).toBe(true);
+    expect(written.skills.paths.length).toBe(1);
+    expect(written.skills.paths[0]).toEndWith('src/skills');
+    expect(existsSync(written.skills.paths[0])).toBe(true);
+    expect(
+      existsSync(join(written.skills.paths[0], 'wiki-ingest', 'SKILL.md')),
+    ).toBe(true);
   });
 
   test('does not overwrite existing lab/config.json', async () => {
@@ -157,22 +176,144 @@ describe('bootstrapProjectConfig — basics', () => {
     expect(kept.literature_wiki_path).toBe('/custom/path');
   });
 
-  test('does not overwrite existing opencode.json', async () => {
+  test('merges amore entries into existing opencode.json', async () => {
     const cwd = await tempProject();
     const home = await tempHome();
-    writeFileSync(
-      join(cwd, 'opencode.json'),
-      '{"plugin":["some-other-plugin"]}',
-      'utf8',
-    );
+    const originalConfig = JSON.stringify({
+      plugin: ['some-other-plugin'],
+      instructions: ['CLAUDE.md'],
+      agent: {
+        build: { model: 'custom/build' },
+        custom: { mode: 'primary' },
+      },
+      skills: { paths: ['/custom/skills'] },
+      mcp: { custom: { type: 'remote', url: 'https://example.test/mcp' } },
+      theme: 'system',
+      custom_user_field: { nested: true },
+    });
+    writeFileSync(join(cwd, 'opencode.json'), originalConfig, 'utf8');
     const result = await bootstrapProjectConfig({
       cwd,
       homeDir: home,
       interactive: false,
     });
+    expect(result.opencodeConfig).toBe(join(cwd, 'opencode.json'));
+    expect(result.opencodeConfigAction).toBe('updated');
+    expect(result.opencodeConfigBackup).toBe(join(cwd, 'opencode.json.bak'));
+    expect(
+      readFileSync(expectString(result.opencodeConfigBackup), 'utf8'),
+    ).toBe(originalConfig);
+    expect(
+      readdirSync(cwd).filter((name) => name.startsWith('opencode.json.tmp-')),
+    ).toEqual([]);
+    const merged = JSON.parse(
+      await Bun.file(join(cwd, 'opencode.json')).text(),
+    );
+    expect(merged.plugin).toEqual(['some-other-plugin', 'ah-my-openresearch']);
+    expect(merged.instructions).toEqual(['CLAUDE.md', 'AGENTS.md']);
+    expect(merged.default_agent).toBe('orchestrator');
+    expect(merged.agent.build).toEqual({
+      model: 'custom/build',
+      disable: true,
+    });
+    expect(merged.agent.plan.disable).toBe(true);
+    expect(merged.agent.custom).toEqual({ mode: 'primary' });
+    expect(merged.skills.paths).toContain('/custom/skills');
+    const bundledPath = merged.skills.paths.find((path: string) =>
+      path.endsWith('src/skills'),
+    );
+    expect(existsSync(bundledPath)).toBe(true);
+    expect(merged.mcp.custom).toEqual({
+      type: 'remote',
+      url: 'https://example.test/mcp',
+    });
+    expect(merged.theme).toBe('system');
+    expect(merged.custom_user_field).toEqual({ nested: true });
+  });
+
+  test('uses the next backup name when opencode.json.bak already exists', async () => {
+    const cwd = await tempProject();
+    const home = await tempHome();
+    writeFileSync(join(cwd, 'opencode.json'), '{"plugin":["other"]}', 'utf8');
+    writeFileSync(join(cwd, 'opencode.json.bak'), 'older backup', 'utf8');
+
+    const result = await bootstrapProjectConfig({
+      cwd,
+      homeDir: home,
+      interactive: false,
+    });
+
+    expect(result.opencodeConfigAction).toBe('updated');
+    expect(result.opencodeConfigBackup).toBe(join(cwd, 'opencode.json.bak.1'));
+    expect(readFileSync(join(cwd, 'opencode.json.bak'), 'utf8')).toBe(
+      'older backup',
+    );
+    expect(readFileSync(join(cwd, 'opencode.json.bak.1'), 'utf8')).toBe(
+      '{"plugin":["other"]}',
+    );
+  });
+
+  test('warns and keeps malformed existing opencode.json unchanged', async () => {
+    const cwd = await tempProject();
+    const home = await tempHome();
+    writeFileSync(join(cwd, 'opencode.json'), '{not valid json', 'utf8');
+
+    const result = await bootstrapProjectConfig({
+      cwd,
+      homeDir: home,
+      interactive: false,
+    });
+
     expect(result.opencodeConfig).toBeNull();
-    const kept = JSON.parse(await Bun.file(join(cwd, 'opencode.json')).text());
-    expect(kept.plugin).toEqual(['some-other-plugin']);
+    expect(result.opencodeConfigAction).toBe('kept');
+    expect(result.opencodeConfigBackup).toBeNull();
+    expect(result.warnings.some((w) => w.includes('Could not parse'))).toBe(
+      true,
+    );
+    expect(readFileSync(join(cwd, 'opencode.json'), 'utf8')).toBe(
+      '{not valid json',
+    );
+    expect(existsSync(join(cwd, 'opencode.json.bak'))).toBe(false);
+  });
+
+  test('warns and keeps non-object existing opencode.json unchanged', async () => {
+    const cwd = await tempProject();
+    const home = await tempHome();
+    writeFileSync(join(cwd, 'opencode.json'), '[]', 'utf8');
+
+    const result = await bootstrapProjectConfig({
+      cwd,
+      homeDir: home,
+      interactive: false,
+    });
+
+    expect(result.opencodeConfig).toBeNull();
+    expect(result.opencodeConfigAction).toBe('kept');
+    expect(result.opencodeConfigBackup).toBeNull();
+    expect(result.warnings.some((w) => w.includes('not a JSON object'))).toBe(
+      true,
+    );
+    expect(readFileSync(join(cwd, 'opencode.json'), 'utf8')).toBe('[]');
+  });
+
+  test('warns and skips opencode.json when an install lock exists', async () => {
+    const cwd = await tempProject();
+    const home = await tempHome();
+    writeFileSync(join(cwd, 'opencode.json'), '{"plugin":["other"]}', 'utf8');
+    mkdirSync(join(cwd, 'opencode.json.lock'));
+
+    const result = await bootstrapProjectConfig({
+      cwd,
+      homeDir: home,
+      interactive: false,
+    });
+
+    expect(result.opencodeConfig).toBeNull();
+    expect(result.opencodeConfigAction).toBe('kept');
+    expect(result.warnings.some((w) => w.includes('config lock'))).toBe(true);
+    expect(readFileSync(join(cwd, 'opencode.json'), 'utf8')).toBe(
+      '{"plugin":["other"]}',
+    );
   });
 
   test('does not overwrite existing AGENTS.md', async () => {
@@ -589,10 +730,10 @@ describe('bootstrapProjectConfig — Obsidian MCP auto-detect', () => {
     expect(result.warnings).toEqual([]);
   });
 
-  test('skips detection when opencode.json already exists', async () => {
+  test('wires mcp.obsidian into existing opencode.json when missing', async () => {
     const cwd = await tempProject();
     const home = await tempHome();
-    const wiki = await makeWikiWithPlugin();
+    const wiki = await makeWikiWithPlugin({ apiKey: 'MERGEKEY' });
     writeFileSync(join(cwd, 'opencode.json'), '{"plugin":["other"]}', 'utf8');
     const result = await bootstrapProjectConfig({
       cwd,
@@ -601,7 +742,47 @@ describe('bootstrapProjectConfig — Obsidian MCP auto-detect', () => {
       literatureWiki: wiki,
       withObsidianMcp: true,
     });
-    expect(result.opencodeConfig).toBeNull();
+    expect(result.opencodeConfig).toBe(join(cwd, 'opencode.json'));
+    expect(result.opencodeConfigAction).toBe('updated');
+    expect(result.obsidianMcpWired).toBe(true);
+    const written = JSON.parse(
+      await Bun.file(join(cwd, 'opencode.json')).text(),
+    );
+    expect(written.plugin).toEqual(['other', 'ah-my-openresearch']);
+    expect(written.mcp.obsidian.environment.OBSIDIAN_API_KEY).toBe('MERGEKEY');
+  });
+
+  test('keeps existing mcp.obsidian entry verbatim', async () => {
+    const cwd = await tempProject();
+    const home = await tempHome();
+    const wiki = await makeWikiWithPlugin({ apiKey: 'SHOULD_NOT_WRITE' });
+    writeFileSync(
+      join(cwd, 'opencode.json'),
+      JSON.stringify({
+        plugin: ['ah-my-openresearch'],
+        mcp: {
+          obsidian: {
+            type: 'remote',
+            url: 'https://custom.example/mcp',
+          },
+        },
+      }),
+      'utf8',
+    );
+    const result = await bootstrapProjectConfig({
+      cwd,
+      homeDir: home,
+      interactive: false,
+      literatureWiki: wiki,
+      withObsidianMcp: true,
+    });
     expect(result.obsidianMcpWired).toBe(false);
+    const written = JSON.parse(
+      await Bun.file(join(cwd, 'opencode.json')).text(),
+    );
+    expect(written.mcp.obsidian).toEqual({
+      type: 'remote',
+      url: 'https://custom.example/mcp',
+    });
   });
 });

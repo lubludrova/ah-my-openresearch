@@ -1,7 +1,15 @@
 ---
 name: wiki-lint
-description: Health-check the user's outside literature wiki. Two modes: single-paper (focused checks on one wiki page) and full-wiki (structural pass across the whole vault). Reports issues with severity (ERROR/WARN/INFO) and surfaces proactive suggestions for new sources or unexplored branches. Writes LINT_REPORT.md to the wiki root. Use when user says "lint", "audit the wiki", "check the wiki", "wiki health", "find broken links", "find orphans", "validate frontmatter", "wiki sanity check", or wants periodic maintenance of the literature wiki. Does NOT touch the project lab (use `amore doctor` for that). Does NOT auto-fix anything — reports only.
-argument-hint: <full | paper:<slug> | scope:<category>>
+description: >-
+  Health-check the user's outside literature wiki. Two modes: single-paper and
+  full-wiki. Reports issues with severity and surfaces proactive suggestions
+  for new sources or unexplored branches. Writes LINT_REPORT.md to the wiki
+  root. Use when user says "lint", "audit the wiki", "check the wiki", "wiki
+  health", "find broken links", "find orphans", "validate frontmatter", "wiki
+  sanity check", or wants periodic maintenance of the literature wiki. Does NOT
+  touch the project lab; use `amore doctor` for that. Does NOT auto-fix
+  anything; reports only.
+argument-hint: "<full | paper:<slug> | scope:<category>>"
 ---
 
 # Wiki Lint

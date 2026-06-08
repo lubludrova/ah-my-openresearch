@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { LAB_SCHEMA_VERSION } from '../config/constants';
 import { appendEdge, createLab, makeEdgeId } from '../lab';
+import { bootstrapProjectConfig } from './bootstrap';
 import { runDoctor } from './doctor';
 
 const tempDirs: string[] = [];
@@ -44,6 +45,16 @@ tested_by: []
   );
 }
 
+async function createInstalledProject(projectRoot: string): Promise<string> {
+  const labDir = await createLab(projectRoot);
+  await bootstrapProjectConfig({
+    cwd: projectRoot,
+    interactive: false,
+    noWiki: true,
+  });
+  return labDir;
+}
+
 afterEach(async () => {
   while (tempDirs.length > 0) {
     const dir = tempDirs.pop();
@@ -62,9 +73,84 @@ describe('doctor', () => {
     expect(result.checks.some((check) => check.label === 'layout')).toBe(true);
   });
 
+  test('passes on a scaffolded project with OpenCode wiring', async () => {
+    const projectRoot = await tempProject();
+    await createInstalledProject(projectRoot);
+
+    const result = await runDoctor({ cwd: projectRoot });
+
+    expect(result.exitCode).toBe(0);
+    expect(
+      result.checks.some(
+        (check) =>
+          check.label === 'opencode.json' &&
+          check.status === 'ok' &&
+          check.message.includes('default_agent'),
+      ),
+    ).toBe(true);
+    expect(
+      result.checks.some(
+        (check) =>
+          check.label === 'opencode agents' &&
+          check.status === 'ok' &&
+          check.message.includes('build/plan'),
+      ),
+    ).toBe(true);
+    expect(
+      result.checks.some(
+        (check) =>
+          check.label === 'opencode skills' &&
+          check.status === 'ok' &&
+          check.message.includes('17 bundled skills'),
+      ),
+    ).toBe(true);
+  });
+
+  test('fails when OpenCode wiring is incomplete', async () => {
+    const projectRoot = await tempProject();
+    await createLab(projectRoot);
+    await writeFile(resolve(projectRoot, 'AGENTS.md'), '# rules\n', 'utf8');
+    await writeFile(
+      resolve(projectRoot, 'opencode.json'),
+      JSON.stringify({
+        plugin: ['ah-my-openresearch'],
+        instructions: ['AGENTS.md'],
+      }),
+      'utf8',
+    );
+
+    const result = await runDoctor({ cwd: projectRoot });
+
+    expect(result.exitCode).toBe(1);
+    expect(
+      result.checks.some(
+        (check) =>
+          check.label === 'opencode.json' &&
+          check.status === 'error' &&
+          check.message.includes('default_agent'),
+      ),
+    ).toBe(true);
+    expect(
+      result.checks.some(
+        (check) =>
+          check.label === 'opencode agents' &&
+          check.status === 'error' &&
+          check.message.includes('agent.build.disable'),
+      ),
+    ).toBe(true);
+    expect(
+      result.checks.some(
+        (check) =>
+          check.label === 'opencode skills' &&
+          check.status === 'error' &&
+          check.message.includes('skills.paths'),
+      ),
+    ).toBe(true);
+  });
+
   test('warns on stale index and repairs it', async () => {
     const projectRoot = await tempProject();
-    const labDir = await createLab(projectRoot);
+    const labDir = await createInstalledProject(projectRoot);
     await writeClaim(labDir);
     await writeFile(resolve(labDir, 'index.md'), '# stale\n', 'utf8');
 
@@ -83,7 +169,7 @@ describe('doctor', () => {
 
   test('fails on broken edge references', async () => {
     const projectRoot = await tempProject();
-    const labDir = await createLab(projectRoot);
+    const labDir = await createInstalledProject(projectRoot);
     await writeClaim(labDir);
     await appendEdge(labDir, {
       schema_version: LAB_SCHEMA_VERSION,

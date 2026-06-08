@@ -29,10 +29,10 @@ the draft you just updated.
 - **LAB_DRAFTS** — `<project>/lab/drafts/`.
 - **LAB_LOG** — `<project>/lab/log.md`. One `update` entry appended.
 - **LAB_INDEX** — `<project>/lab/index.md`. Regenerated after the write.
-- **PROJECT_AGENTS** — `<project>/AGENTS.md`. Backend + W&B + runs_dir.
-- **DEFAULT_RUNS_DIR** — `<project>/runs/exp-<slug>-<date>/seed-<N>/`.
+- **PROJECT_AGENTS** — `<project>/AGENTS.md`. Project instructions.
+- **DEFAULT_OUTPUT_ROOT** — `<project>/lab/drafts/exp-<slug>-<date>-outputs/`.
 - **PRIMARY_METRIC_RULE** — First entry of `plan.metrics`.
-- **SUCCESS_DIRECTION_RULE** — If `plan.success_direction` is declared,
+- **SUCCESS_DIRECTION_RULE** — If the draft body declares a success direction,
   use it. Else heuristic: metric name containing `loss`, `bpb`, `error`,
   `perplexity`, `nll`, `regret` → "lower is better". Anything else →
   "higher is better". Tag the chosen direction explicitly in the report.
@@ -76,16 +76,15 @@ the draft you just updated.
    - `failed` / `abandoned` → still allowed; we may be finalizing a
      partial run. Proceed but the outcome can only be `partial`,
      `contradicts`, or `unknown` (never `supports`).
-4. Read the body's `## Run` section to recover backend, devices, seeds,
-   screens, runs_dir, W&B project (if any).
+4. Read the body's `## Run` section to recover location, devices, seeds,
+   screens, and output_root.
 
 ### Step 1 — Verify all seeds have exited (HARD GATE)
 
 For each seed in the draft:
 
-- Local: `screen -ls | grep <screen>` → must be absent OR (present AND
-  inner Python PID gone).
-- SSH: same wrapped in `ssh <host>`.
+- `screen -ls | grep <screen>` → must be absent OR (present AND inner
+  Python PID gone).
 
 Any seed still running → STOP and ask:
 - "Seed <N> is still running. Two options: (a) wait, (b) abandon this
@@ -99,22 +98,15 @@ the summary; do NOT kill it from here (@coder kills if needed).
 For each seed:
 
 1. Locate the result file. Preferred order:
-   - `<runs_dir>/seed-<N>/metrics.json`
-   - `<runs_dir>/seed-<N>/metrics.csv`
-   - Fallback: parse the last metric block from `<runs_dir>/seed-<N>/train.log`
+   - `<output_root>/seed-<N>/metrics.json`
+   - `<output_root>/seed-<N>/metrics.csv`
+   - Fallback: parse the last metric block from `<output_root>/seed-<N>/train.log`
      using regex on `plan.metrics` names. Tag values with
      `[fallback-from-log]` in the report.
 2. Record the absolute path in `result_files` (sorted, deterministic).
 3. If a seed has no parseable result → record it as `missing` and skip
    from aggregation. The presence of missing seeds biases the outcome
    call; reflect this in the summary.
-
-W&B (only if AGENTS.md `wandb: true` AND a run id is captured):
-
-- Pull `run.summary` per seed and cross-check the final metric values
-  against the metric files. Disagreement → trust the file, flag in the
-  report. Include `run.url` in the result_files list so the librarian
-  can cite training curves later.
 
 ### Step 3 — Aggregate by condition
 
@@ -174,10 +166,9 @@ run:
   completed_at: <ISO 8601 UTC>
 results:
   result_files:
-    - runs/exp-<slug>-<date>/seed-42/metrics.json
-    - runs/exp-<slug>-<date>/seed-7/metrics.json
-    - runs/exp-<slug>-<date>/seed-1337/metrics.json
-    - wandb:<entity>/<project>/<run_id_seed42>   # if W&B
+    - lab/drafts/exp-<slug>-<date>-outputs/seed-42/metrics.json
+    - lab/drafts/exp-<slug>-<date>-outputs/seed-7/metrics.json
+    - lab/drafts/exp-<slug>-<date>-outputs/seed-1337/metrics.json
   summary: "<one paragraph: condition vs baseline, primary metric mean±std (n), Δ, decision rule>"
   outcome: supports | partial | contradicts | inconclusive | unknown
 ```
@@ -199,7 +190,7 @@ Primary metric: <name>, success_direction: lower-is-better
 
 ### Notes
 - single-seed flags / missing seeds / abandoned seeds / fallback-from-log
-  / W&B-vs-file disagreement notes go here.
+  notes go here.
 ```
 
 Do NOT touch `plan`, `tests`, `idea_refs`, `claim_refs`, `provenance.*`
@@ -363,8 +354,6 @@ Affected: [[exp:<slug>-<date>]]
   AND combined.
 - Never quietly drop missing seeds. They bias the aggregation and the
   `## Notes` section must call them out explicitly.
-- Never substitute W&B values for file values silently. If they disagree,
-  trust the file and flag the disagreement.
 
 ## Related
 

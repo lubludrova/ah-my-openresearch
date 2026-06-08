@@ -11,10 +11,19 @@
 // Each step is pure-ish: side effects are file writes and prompts; nothing
 // else logs. install.ts owns presentation.
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { homedir } from 'node:os';
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
 import { createInterface } from 'node:readline/promises';
+import { fileURLToPath } from 'node:url';
 import { CONFIG_SCHEMA_VERSION } from '../config/constants';
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -45,10 +54,17 @@ export interface ObsidianMcpEntry {
 export interface BootstrapWriteResult {
   /** Absolute path of the file we wrote, or null when skipped. */
   labConfig: string | null;
+  /** Absolute path of opencode.json when created/updated, or null when kept. */
   opencodeConfig: string | null;
   agentsFile: string | null;
-  /** True iff a mcp.obsidian block was wired into the generated opencode.json. */
+  /** True iff a mcp.obsidian block was added to opencode.json. */
   obsidianMcpWired: boolean;
+  /** Whether opencode.json was created, updated in place, or already correct. */
+  opencodeConfigAction: 'created' | 'updated' | 'kept';
+  /** Backup path written before updating an existing opencode.json. */
+  opencodeConfigBackup: string | null;
+  /** Soft warnings to surface. */
+  warnings: string[];
 }
 
 export interface BootstrapOptions {
@@ -75,13 +91,10 @@ export interface BootstrapOptions {
 // ──────────────────────────────────────────────────────────────────────────
 
 const DETECTED_WIKIS = ['RL-Wiki', 'PM-Wiki'] as const;
-const CONTRACT_FILES = [
-  'RULES.md',
-  'AGENTS.md',
-  'README.md',
-  'ingest_prompt.md',
-] as const;
+const CONTRACT_FILES = ['RULES.md', 'AGENTS.md', 'README.md'] as const;
 const DEFAULT_WIKI_NAME = 'llm-wiki';
+const BOOTSTRAP_FILE = fileURLToPath(import.meta.url);
+const BUNDLED_SKILLS_DIR = resolveBundledSkillsDir(BOOTSTRAP_FILE);
 
 const STARTER_WIKI_RULES_MD = `# Wiki Rules
 
@@ -168,6 +181,17 @@ function hasContractFile(absolutePath: string): boolean {
   return CONTRACT_FILES.some((name) => existsSync(join(absolutePath, name)));
 }
 
+function resolveBundledSkillsDir(moduleFile: string): string {
+  const moduleDir = dirname(moduleFile);
+  const candidates = [
+    // Source mode: src/cli/bootstrap.ts -> src/skills.
+    resolve(moduleDir, '..', 'skills'),
+    // Published bundle: dist/cli/index.js -> src/skills.
+    resolve(moduleDir, '..', '..', 'src', 'skills'),
+  ];
+  return candidates.find((path) => existsSync(path)) ?? candidates[0];
+}
+
 function absoluteWikiPath(path: string, cwd: string, home: string): string {
   if (path.startsWith('~')) {
     return expandHome(path, home);
@@ -203,7 +227,7 @@ function warnExplicitPath(
     );
   } else if (!hasContractFile(absolute)) {
     warnings.push(
-      `Literature wiki at "${display}" has no RULES.md / AGENTS.md / README.md / ingest_prompt.md — librarian will fall back to internal defaults.`,
+      `Literature wiki at "${display}" has no RULES.md / AGENTS.md / README.md — librarian will ask for a wiki contract before writing.`,
     );
   }
 }
@@ -476,6 +500,261 @@ function writeJsonIfMissing(target: string, body: unknown): boolean {
   return true;
 }
 
+function isJsonObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function addStringEntry(
+  body: Record<string, unknown>,
+  key: string,
+  entry: string,
+): boolean {
+  const current = body[key];
+
+  if (Array.isArray(current)) {
+    if (current.includes(entry)) {
+      return false;
+    }
+    body[key] = [...current, entry];
+    return true;
+  }
+
+  if (typeof current === 'string') {
+    if (current === entry) {
+      body[key] = [entry];
+      return true;
+    }
+    body[key] = [current, entry];
+    return true;
+  }
+
+  body[key] = [entry];
+  return true;
+}
+
+function ensureAmoreOpencodeConfig(
+  body: Record<string, unknown>,
+  obsidianMcp: ObsidianMcpEntry | null,
+): { changed: boolean; obsidianMcpWired: boolean } {
+  let changed = false;
+  let obsidianMcpWired = false;
+
+  if (body.$schema === undefined) {
+    body.$schema = 'https://opencode.ai/config.json';
+    changed = true;
+  }
+
+  changed = addStringEntry(body, 'plugin', 'ah-my-openresearch') || changed;
+  changed = addStringEntry(body, 'instructions', 'AGENTS.md') || changed;
+
+  if (body.default_agent === undefined) {
+    body.default_agent = 'orchestrator';
+    changed = true;
+  }
+
+  const agent = isJsonObject(body.agent) ? body.agent : {};
+  if (body.agent !== agent) {
+    body.agent = agent;
+    changed = true;
+  }
+  for (const name of ['build', 'plan'] as const) {
+    const existing = agent[name];
+    const entry = isJsonObject(existing) ? existing : {};
+    if (existing !== entry) {
+      agent[name] = entry;
+      changed = true;
+    }
+    if (entry.disable !== true) {
+      entry.disable = true;
+      changed = true;
+    }
+  }
+
+  const skills = isJsonObject(body.skills) ? body.skills : {};
+  if (body.skills !== skills) {
+    body.skills = skills;
+    changed = true;
+  }
+  const paths = skills.paths;
+  if (Array.isArray(paths)) {
+    if (!paths.includes(BUNDLED_SKILLS_DIR)) {
+      skills.paths = [...paths, BUNDLED_SKILLS_DIR];
+      changed = true;
+    }
+  } else {
+    skills.paths = [BUNDLED_SKILLS_DIR];
+    changed = true;
+  }
+
+  if (obsidianMcp) {
+    const mcp = isJsonObject(body.mcp) ? body.mcp : {};
+    if (body.mcp !== mcp) {
+      body.mcp = mcp;
+      changed = true;
+    }
+    if (!isJsonObject(mcp.obsidian)) {
+      mcp.obsidian = {
+        type: 'local',
+        command: ['bunx', 'obsidian-mcp-server@latest'],
+        environment: {
+          OBSIDIAN_API_KEY: obsidianMcp.apiKey,
+          OBSIDIAN_BASE_URL: obsidianMcp.baseUrl,
+          OBSIDIAN_VERIFY_SSL: String(obsidianMcp.verifySSL),
+        },
+      };
+      changed = true;
+      obsidianMcpWired = true;
+    }
+  }
+
+  return { changed, obsidianMcpWired };
+}
+
+function formatJson(body: unknown): string {
+  return `${JSON.stringify(body, null, 2)}\n`;
+}
+
+function writeFileAtomic(target: string, content: string): void {
+  mkdirSync(dirname(target), { recursive: true });
+  const tmpPath = `${target}.tmp-${process.pid}-${Date.now()}`;
+  try {
+    writeFileSync(tmpPath, content, 'utf8');
+    renameSync(tmpPath, target);
+  } catch (error) {
+    rmSync(tmpPath, { force: true });
+    throw error;
+  }
+}
+
+function nextBackupPath(target: string): string {
+  const first = `${target}.bak`;
+  if (!existsSync(first)) {
+    return first;
+  }
+
+  for (let index = 1; index < 1000; index += 1) {
+    const candidate = `${first}.${index}`;
+    if (!existsSync(candidate)) {
+      return candidate;
+    }
+  }
+
+  return `${first}.${Date.now()}`;
+}
+
+function backupExistingFile(target: string): string {
+  const backupPath = nextBackupPath(target);
+  copyFileSync(target, backupPath);
+  return backupPath;
+}
+
+function formatError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function acquireConfigLock(
+  target: string,
+  warnings: string[],
+): (() => void) | null {
+  const lockPath = `${target}.lock`;
+  try {
+    mkdirSync(lockPath);
+  } catch (error) {
+    warnings.push(
+      `Could not acquire OpenCode config lock at ${lockPath} (${formatError(error)}) — leaving opencode.json unchanged. If no install is running, remove the lock and re-run.`,
+    );
+    return null;
+  }
+
+  return () => {
+    rmSync(lockPath, { recursive: true, force: true });
+  };
+}
+
+function writeOrUpdateOpencodeConfig(
+  target: string,
+  obsidianMcp: ObsidianMcpEntry | null,
+): {
+  action: BootstrapWriteResult['opencodeConfigAction'];
+  obsidianMcpWired: boolean;
+  backupPath: string | null;
+  warnings: string[];
+} {
+  const warnings: string[] = [];
+  const releaseLock = acquireConfigLock(target, warnings);
+  if (!releaseLock) {
+    return {
+      action: 'kept',
+      obsidianMcpWired: false,
+      backupPath: null,
+      warnings,
+    };
+  }
+
+  try {
+    const body: Record<string, unknown> = {};
+    const ensured = ensureAmoreOpencodeConfig(body, obsidianMcp);
+
+    if (!existsSync(target)) {
+      writeFileAtomic(target, formatJson(body));
+      return {
+        action: 'created',
+        obsidianMcpWired: ensured.obsidianMcpWired,
+        backupPath: null,
+        warnings,
+      };
+    }
+
+    let existing: unknown;
+    try {
+      existing = JSON.parse(readFileSync(target, 'utf8'));
+    } catch (error) {
+      warnings.push(
+        `Could not parse ${target} (${formatError(error)}) — leaving opencode.json unchanged. Fix the JSON and re-run amore install.`,
+      );
+      return {
+        action: 'kept',
+        obsidianMcpWired: false,
+        backupPath: null,
+        warnings,
+      };
+    }
+
+    if (!isJsonObject(existing)) {
+      warnings.push(
+        `${target} is not a JSON object — leaving opencode.json unchanged.`,
+      );
+      return {
+        action: 'kept',
+        obsidianMcpWired: false,
+        backupPath: null,
+        warnings,
+      };
+    }
+
+    const updated = ensureAmoreOpencodeConfig(existing, obsidianMcp);
+    if (!updated.changed) {
+      return {
+        action: 'kept',
+        obsidianMcpWired: false,
+        backupPath: null,
+        warnings,
+      };
+    }
+
+    const backupPath = backupExistingFile(target);
+    writeFileAtomic(target, formatJson(existing));
+    return {
+      action: 'updated',
+      obsidianMcpWired: updated.obsidianMcpWired,
+      backupPath,
+      warnings,
+    };
+  } finally {
+    releaseLock();
+  }
+}
+
 export function writeBootstrapFiles(args: {
   cwd: string;
   labDir?: string;
@@ -495,29 +774,9 @@ export function writeBootstrapFiles(args: {
   const labConfigWritten = writeJsonIfMissing(labConfigPath, labConfigBody);
 
   const opencodeConfigPath = join(args.cwd, 'opencode.json');
-  const opencodeExists = existsSync(opencodeConfigPath);
-
-  const opencodeConfigBody: Record<string, unknown> = {
-    $schema: 'https://opencode.ai/config.json',
-    plugin: ['ah-my-openresearch'],
-    instructions: ['AGENTS.md'],
-  };
-  if (args.obsidianMcp && !opencodeExists) {
-    opencodeConfigBody.mcp = {
-      obsidian: {
-        type: 'local',
-        command: ['bunx', 'obsidian-mcp-server@latest'],
-        environment: {
-          OBSIDIAN_API_KEY: args.obsidianMcp.apiKey,
-          OBSIDIAN_BASE_URL: args.obsidianMcp.baseUrl,
-          OBSIDIAN_VERIFY_SSL: String(args.obsidianMcp.verifySSL),
-        },
-      },
-    };
-  }
-  const opencodeConfigWritten = writeJsonIfMissing(
+  const opencodeConfig = writeOrUpdateOpencodeConfig(
     opencodeConfigPath,
-    opencodeConfigBody,
+    args.obsidianMcp,
   );
   const agentsFile = writeStarterAgentsFile(args.cwd, {
     projectName: basename(args.cwd),
@@ -527,9 +786,13 @@ export function writeBootstrapFiles(args: {
 
   return {
     labConfig: labConfigWritten ? labConfigPath : null,
-    opencodeConfig: opencodeConfigWritten ? opencodeConfigPath : null,
+    opencodeConfig:
+      opencodeConfig.action === 'kept' ? null : opencodeConfigPath,
     agentsFile,
-    obsidianMcpWired: opencodeConfigWritten && args.obsidianMcp !== null,
+    obsidianMcpWired: opencodeConfig.obsidianMcpWired,
+    opencodeConfigAction: opencodeConfig.action,
+    opencodeConfigBackup: opencodeConfig.backupPath,
+    warnings: opencodeConfig.warnings,
   };
 }
 
@@ -549,6 +812,10 @@ export interface BootstrapResult {
   wikiKind: WikiChoiceKind;
   /** True iff a new wiki was created. */
   wikiCreated: boolean;
+  /** Whether opencode.json was created, updated in place, or already correct. */
+  opencodeConfigAction: BootstrapWriteResult['opencodeConfigAction'];
+  /** Backup path written before updating an existing opencode.json. */
+  opencodeConfigBackup: string | null;
 }
 
 /**
@@ -577,6 +844,7 @@ export async function bootstrapProjectConfig(
     resolvedWikiPath: wiki.resolvedPath,
     obsidianMcp: mcpEntry,
   });
+  warnings.push(...written.warnings);
 
   return {
     labConfig: written.labConfig,
@@ -588,6 +856,8 @@ export async function bootstrapProjectConfig(
     warnings,
     wikiKind: wiki.kind,
     wikiCreated: wiki.created,
+    opencodeConfigAction: written.opencodeConfigAction,
+    opencodeConfigBackup: written.opencodeConfigBackup,
   };
 }
 
@@ -598,7 +868,7 @@ export async function bootstrapProjectConfig(
 const STARTER_AGENTS_MD_TEMPLATE = `# {{PROJECT_NAME}} - research project (managed by amore)
 
 This project is set up with [ah-my-openresearch](https://github.com/lubludrova/ah-my-openresearch)
-("amore"). Six research personas register at host-CLI startup, bundled
+("amore"). Six research personas register at OpenCode startup, bundled
 skills are exposed by the plugin, and \`{{LAB_DIR}}/\` is the project-local
 research record.
 
@@ -607,13 +877,10 @@ research record.
 \`\`\`yaml
 lab_dir: {{LAB_DIR}}
 literature_wiki_path: {{WIKI_PATH_YAML}}
-backend: local
-runs_dir: runs/
-wandb: false
 \`\`\`
 
-Update this block when the project moves from local runs to SSH, Slurm, W&B,
-or a different results directory. The experiment skills read this file first.
+This block records the paths generated by \`amore install\`. Update it only if
+the project lab or literature wiki moves.
 
 ## Where things live
 
@@ -625,13 +892,13 @@ or a different results directory. The experiment skills read this file first.
   - \`{{LAB_DIR}}/edges.jsonl\` - typed graph between artifacts.
   - \`{{LAB_DIR}}/index.md\` - generated catalog; manual edits are not kept.
 - {{LITERATURE_WIKI_LINE}}
-- \`opencode.json\` - host CLI plugin entry. The amore plugin registers the
+- \`opencode.json\` - OpenCode plugin entry. The amore plugin registers the
   personas, MCPs, and bundled skill path at runtime.
 
 ## Personas
 
-Six specialists register at OpenCode / Codex / Claude Code startup. Talk to
-any of them directly, or address \`@orchestrator\` for routing.
+Six specialists register at OpenCode startup. Talk to any of them directly,
+or address \`@orchestrator\` for routing.
 
 | Persona | Owns | When to call |
 |---|---|---|
@@ -709,11 +976,10 @@ contract. Read the first file that exists, in this priority order:
 1. \`${vars.literatureWikiPath}/RULES.md\`
 2. \`${vars.literatureWikiPath}/AGENTS.md\`
 3. \`${vars.literatureWikiPath}/README.md\`
-4. \`${vars.literatureWikiPath}/ingest_prompt.md\`
 
 When the librarian writes a new page, it follows the wiki's naming convention,
 frontmatter schema, and log format. If no contract file exists, the librarian
-falls back to its internal defaults.`
+asks for a contract before writing.`
     : `## Literature wiki
 
 No literature wiki is configured for this project yet. To enable librarian,

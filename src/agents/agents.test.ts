@@ -34,13 +34,10 @@ describe('createAllAgents', () => {
     }
   });
 
-  test('orchestrator is primary; writer and council are all; others are subagents', () => {
+  test('all personas are available as primary agents and subagents', () => {
     const agents = createAllAgents();
-    expect(agents.orchestrator.mode).toBe('primary');
-    expect(agents.writer.mode).toBe('all');
-    expect(agents.council.mode).toBe('all');
-    for (const name of ['librarian', 'prospector', 'coder']) {
-      expect(agents[name].mode).toBe('subagent');
+    for (const name of ALL_PERSONAS) {
+      expect(agents[name].mode).toBe('all');
     }
   });
 

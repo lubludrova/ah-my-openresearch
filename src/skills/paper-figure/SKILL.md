@@ -102,7 +102,7 @@ For each in-scope auto-generatable figure:
 2. Read each referenced exp draft `lab/drafts/exp-<slug>-<date>.md`.
 3. Pull `results.result_files` list (written by `analyze-results`).
    If the list is empty:
-   - Check the body's `## Run` section for a `runs_dir` reference.
+   - Check the body's `## Run` section for an `output_root` reference.
    - If still nothing → flag the figure as `data-missing`, do not
      render, surface in the handoff.
 4. Verify each referenced result file exists on disk:

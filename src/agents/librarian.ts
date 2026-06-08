@@ -32,9 +32,6 @@ On every session, before responding to the user, you MUST:
    \`<WIKI_PATH>/index.md\`) to know what pages already exist.
 3. Read the wiki's log file (last ~20 entries) for recent activity.
 
-If the request involves writing to the wiki, also read any wiki-side
-ingest workflow document (e.g. \`<WIKI_PATH>/ingest_prompt.md\` if present).
-
 If the request involves writing artifacts to the project lab, also read:
 - \`<project>/lab/SCHEMA.md\` — amore's lab artifact schema.
 
@@ -160,7 +157,7 @@ export function createLibrarianAgent(
   return {
     description:
       'Literature specialist: search, synthesize, extract atomic claims, maintain the literature wiki.',
-    mode: 'subagent',
+    mode: 'all',
     model,
     temperature: 0.1,
     prompt,

@@ -100,7 +100,7 @@ Before starting any refinement phase, read:
 
 If the input references an `idea:*`, `claim:*`, or `exp:*` node, read the matching draft in full.
 
-For wiki grounding, read the user's wiki contract at `<WIKI_PATH>` before reading wiki pages. Look for `RULES.md`, `AGENTS.md`, `README.md`, or `ingest_prompt.md`. Use the contract's schema and retrieval expectations; do not hard-code the wiki layout. If no contract exists, use read-only markdown fallback and report that the wiki contract was missing.
+For wiki grounding, read the user's wiki contract at `<WIKI_PATH>` before reading wiki pages. Look for `RULES.md`, `AGENTS.md`, or `README.md`. Use the contract's schema and retrieval expectations; do not hard-code the wiki layout. If no contract exists, use read-only markdown fallback and report that the wiki contract was missing.
 
 ### Initialization (Checkpoint Recovery)
 
