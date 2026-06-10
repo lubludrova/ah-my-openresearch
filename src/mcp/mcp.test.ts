@@ -66,7 +66,7 @@ describe('MCP_META', () => {
   });
 
   test('required-levels match design intent', () => {
-    expect(MCP_META.obsidian.required).toBe('required');
+    expect(MCP_META.obsidian.required).toBe('optional');
   });
 
   test('install hints are non-empty and point at upstream README', () => {

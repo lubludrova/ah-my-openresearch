@@ -24,7 +24,13 @@ import { homedir } from 'node:os';
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
 import { createInterface } from 'node:readline/promises';
 import { fileURLToPath } from 'node:url';
-import { CONFIG_SCHEMA_VERSION } from '../config/constants';
+import pkg from '../../package.json' with { type: 'json' };
+import {
+  CONFIG_SCHEMA_VERSION,
+  MODEL_PRESETS,
+  MODEL_PRESET_NAMES,
+  type ModelPresetName,
+} from '../config/constants';
 
 // ──────────────────────────────────────────────────────────────────────────
 // Types
@@ -37,8 +43,6 @@ export interface WikiResolution {
   kind: WikiChoiceKind;
   /** Path written into lab/config.json (or null when skipped). */
   resolvedPath: string | null;
-  /** Auto-detected path under ~ at the start of the flow (for logging). */
-  detectedAutoPath: string | null;
   /** True iff the create branch actually wrote a new wiki on disk. */
   created: boolean;
   /** Soft warnings to surface. */
@@ -80,6 +84,8 @@ export interface BootstrapOptions {
   noWiki?: boolean;
   /** Opt-in to wiring Obsidian MCP from the chosen wiki's plugin. */
   withObsidianMcp?: boolean;
+  /** Persona model preset from --models <name>. */
+  models?: ModelPresetName;
   /** Whether to prompt interactively. Defaults to process.stdin.isTTY. */
   interactive?: boolean;
   /** Test seam — defaults to readline against process.stdin/stdout. */
@@ -90,9 +96,10 @@ export interface BootstrapOptions {
 // Constants
 // ──────────────────────────────────────────────────────────────────────────
 
-const DETECTED_WIKIS = ['RL-Wiki', 'PM-Wiki'] as const;
 const CONTRACT_FILES = ['RULES.md', 'AGENTS.md', 'README.md'] as const;
 const DEFAULT_WIKI_NAME = 'llm-wiki';
+const AMORE_PLUGIN_NAME = 'ah-my-openresearch';
+const AMORE_PLUGIN_SPEC = `${AMORE_PLUGIN_NAME}@${pkg.version}`;
 const BOOTSTRAP_FILE = fileURLToPath(import.meta.url);
 const BUNDLED_SKILLS_DIR = resolveBundledSkillsDir(BOOTSTRAP_FILE);
 
@@ -157,15 +164,6 @@ to avoid duplicates. Append backlinks if related pages exist.
 // ──────────────────────────────────────────────────────────────────────────
 // Path helpers
 // ──────────────────────────────────────────────────────────────────────────
-
-function detectAutoWikiUnderHome(home: string): string | null {
-  for (const name of DETECTED_WIKIS) {
-    if (existsSync(join(home, name))) {
-      return `~/${name}`;
-    }
-  }
-  return null;
-}
 
 function expandHome(path: string, home: string): string {
   if (path === '~') {
@@ -281,7 +279,9 @@ export function createStarterWiki(dirAbsolute: string): {
 /**
  * Resolves which literature wiki path (if any) will land in lab/config.json.
  * In interactive mode, prompts the user with a 3-way choice
- * (use / create / skip). Non-interactive runs honor explicit flags only.
+ * (use / create / skip). Non-interactive runs honor explicit flags only —
+ * install never auto-detects or silently writes a wiki path the user did
+ * not choose.
  */
 export async function resolveLiteratureWiki(
   options: BootstrapOptions = {},
@@ -291,59 +291,33 @@ export async function resolveLiteratureWiki(
   const interactive = options.interactive ?? Boolean(process.stdin.isTTY);
   const prompt = options.prompt ?? defaultPrompt;
   const warnings: string[] = [];
-  const detectedAutoPath = detectAutoWikiUnderHome(home);
 
   // Explicit opt-out wins outright.
   if (options.noWiki) {
-    return {
-      kind: 'skip',
-      resolvedPath: null,
-      detectedAutoPath,
-      created: false,
-      warnings,
-    };
+    return { kind: 'skip', resolvedPath: null, created: false, warnings };
   }
 
   // Explicit --literature-wiki <path>.
   if (options.literatureWiki) {
     const display = options.literatureWiki;
     warnExplicitPath(display, absoluteWikiPath(display, cwd, home), warnings);
-    return {
-      kind: 'use',
-      resolvedPath: display,
-      detectedAutoPath,
-      created: false,
-      warnings,
-    };
+    return { kind: 'use', resolvedPath: display, created: false, warnings };
   }
 
-  // Non-interactive without any flag: silently use auto-detect if found,
-  // otherwise omit (matches existing CI behavior).
+  // Non-interactive without any flag: skip. Wiki paths are only ever
+  // written when the user chose one explicitly.
   if (!interactive) {
-    return {
-      kind: detectedAutoPath ? 'use' : 'skip',
-      resolvedPath: detectedAutoPath,
-      detectedAutoPath,
-      created: false,
-      warnings,
-    };
+    return { kind: 'skip', resolvedPath: null, created: false, warnings };
   }
 
-  // Interactive: full 3-way menu, with auto-detected path used as the default
-  // suggestion for [u].
+  // Interactive: full 3-way menu.
   const choice = await prompt(
     '  [u] use an existing wiki        — I will ask for the path\n  [c] create one in this project  — at ./llm-wiki/\n  [s] skip                         — no literature wiki\n\n  > ',
   );
   const menuChoice = parseWikiMenuChoice(choice);
 
   if (menuChoice === 'skip') {
-    return {
-      kind: 'skip',
-      resolvedPath: null,
-      detectedAutoPath,
-      created: false,
-      warnings,
-    };
+    return { kind: 'skip', resolvedPath: null, created: false, warnings };
   }
 
   if (menuChoice === 'create') {
@@ -354,37 +328,75 @@ export async function resolveLiteratureWiki(
     return {
       kind: 'create',
       resolvedPath: `./${name}`,
-      detectedAutoPath,
       created: true,
       warnings,
     };
   }
 
-  // 'u' or anything else → ask for path.
-  const suggestion = detectedAutoPath ?? '';
-  const pathPrompt = suggestion
-    ? `  Path to your wiki [${suggestion}]: > `
-    : '  Path to your wiki: > ';
-  const entered = (await prompt(pathPrompt)).trim() || suggestion;
+  // 'u' or anything else → ask for path; blank answer = skip.
+  const entered = (await prompt('  Path to your wiki: > ')).trim();
 
   if (!entered) {
-    return {
-      kind: 'skip',
-      resolvedPath: null,
-      detectedAutoPath,
-      created: false,
-      warnings,
-    };
+    return { kind: 'skip', resolvedPath: null, created: false, warnings };
   }
 
   warnExplicitPath(entered, absoluteWikiPath(entered, cwd, home), warnings);
-  return {
-    kind: 'use',
-    resolvedPath: entered,
-    detectedAutoPath,
-    created: false,
-    warnings,
-  };
+  return { kind: 'use', resolvedPath: entered, created: false, warnings };
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Step 1b — Persona model preset
+// ──────────────────────────────────────────────────────────────────────────
+
+function parseModelPresetChoice(choice: string): ModelPresetName | null {
+  const normalized = choice.trim().toLowerCase();
+  if (normalized === '' || normalized === '1' || normalized.startsWith('o')) {
+    return 'openai';
+  }
+  if (normalized === '2' || normalized.startsWith('a')) {
+    return 'anthropic';
+  }
+  if (normalized === '3' || normalized.startsWith('g')) {
+    return 'google';
+  }
+  return null; // 's' / anything else → skip, keep code defaults.
+}
+
+/**
+ * Resolves which persona model preset (if any) lands in lab/config.json as
+ * a `personas` block. Explicit `--models <name>` wins; otherwise interactive
+ * installs get a menu; non-interactive installs without the flag skip
+ * (personas fall back to the code defaults = openai preset).
+ */
+export async function resolveModelPreset(
+  options: BootstrapOptions = {},
+): Promise<ModelPresetName | null> {
+  if (options.models) {
+    return options.models;
+  }
+  const interactive = options.interactive ?? Boolean(process.stdin.isTTY);
+  if (!interactive) {
+    return null;
+  }
+  const prompt = options.prompt ?? defaultPrompt;
+  const choice = await prompt(
+    '  Which provider should the six personas use?\n' +
+      '  [1] openai     gpt-5.5 + gpt-5.4-mini (default)\n' +
+      '  [2] anthropic  claude-sonnet-4-6 + claude-haiku-4-5\n' +
+      '  [3] google     gemini-3.1-pro-preview + gemini-3.5-flash\n' +
+      '  [s] skip       decide later (personas.<name>.model in lab/config.json)\n\n  > ',
+  );
+  return parseModelPresetChoice(choice);
+}
+
+function personasBlockForPreset(
+  preset: ModelPresetName,
+): Record<string, { model: string }> {
+  const block: Record<string, { model: string }> = {};
+  for (const [persona, model] of Object.entries(MODEL_PRESETS[preset])) {
+    block[persona] = { model };
+  }
+  return block;
 }
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -532,6 +544,123 @@ function addStringEntry(
   return true;
 }
 
+/**
+ * True for skills.paths entries that older amore installers wrote: the
+ * package's bundled skills directory as an absolute path. Recognized by an
+ * `ah-my-openresearch` directory (optionally versioned, as in bunx/npx
+ * caches) followed by `src/skills`, or by an exact match with this module's
+ * own resolved bundled dir (source-mode installs on the same machine).
+ */
+export function isAmoreBundledSkillsPath(entry: unknown): entry is string {
+  if (typeof entry !== 'string') {
+    return false;
+  }
+  if (entry === BUNDLED_SKILLS_DIR) {
+    return true;
+  }
+  return /ah-my-openresearch(@[^/\\]+)?[/\\]src[/\\]skills[/\\]?$/.test(entry);
+}
+
+function removeStaleAmoreSkillsPaths(body: Record<string, unknown>): boolean {
+  if (!isJsonObject(body.skills) || !Array.isArray(body.skills.paths)) {
+    return false;
+  }
+  const skills = body.skills;
+  const paths = skills.paths as unknown[];
+  const kept = paths.filter((entry) => !isAmoreBundledSkillsPath(entry));
+  if (kept.length === paths.length) {
+    return false;
+  }
+  if (kept.length > 0) {
+    skills.paths = kept;
+    return true;
+  }
+  // JSON.stringify drops undefined-valued keys, so the written config loses
+  // the empty entries without using `delete`.
+  skills.paths = undefined;
+  const hasOtherKeys = Object.keys(skills).some(
+    (key) => key !== 'paths' && skills[key] !== undefined,
+  );
+  if (!hasOtherKeys) {
+    body.skills = undefined;
+  }
+  return true;
+}
+
+function isAmorePluginSpec(spec: unknown): spec is string {
+  return (
+    typeof spec === 'string' &&
+    (spec === AMORE_PLUGIN_NAME || spec.startsWith(`${AMORE_PLUGIN_NAME}@`))
+  );
+}
+
+function normalizePluginEntry(entry: unknown): unknown {
+  if (isAmorePluginSpec(entry)) {
+    return AMORE_PLUGIN_SPEC;
+  }
+  if (Array.isArray(entry) && isAmorePluginSpec(entry[0])) {
+    return [AMORE_PLUGIN_SPEC, ...entry.slice(1)];
+  }
+  return entry;
+}
+
+function addVersionedAmorePluginEntry(body: Record<string, unknown>): boolean {
+  const current = body.plugin;
+
+  if (Array.isArray(current)) {
+    let changed = false;
+    let sawAmore = false;
+    const next: unknown[] = [];
+
+    for (const entry of current) {
+      const isAmoreEntry =
+        isAmorePluginSpec(entry) ||
+        (Array.isArray(entry) && isAmorePluginSpec(entry[0]));
+      if (isAmoreEntry) {
+        if (sawAmore) {
+          changed = true;
+          continue;
+        }
+        sawAmore = true;
+      }
+
+      const normalized = normalizePluginEntry(entry);
+      if (normalized !== entry) {
+        changed = true;
+      }
+      next.push(normalized);
+    }
+
+    if (!sawAmore) {
+      next.push(AMORE_PLUGIN_SPEC);
+      changed = true;
+    }
+
+    if (changed) {
+      body.plugin = next;
+    }
+    return changed;
+  }
+
+  if (current === undefined) {
+    body.plugin = [AMORE_PLUGIN_SPEC];
+    return true;
+  }
+
+  if (isAmorePluginSpec(current)) {
+    body.plugin = [AMORE_PLUGIN_SPEC];
+    return current !== AMORE_PLUGIN_SPEC;
+  }
+
+  if (typeof current === 'string') {
+    body.plugin = [current, AMORE_PLUGIN_SPEC];
+    return true;
+  }
+
+  body.plugin = [AMORE_PLUGIN_SPEC];
+  return true;
+}
+
 function ensureAmoreOpencodeConfig(
   body: Record<string, unknown>,
   obsidianMcp: ObsidianMcpEntry | null,
@@ -544,7 +673,7 @@ function ensureAmoreOpencodeConfig(
     changed = true;
   }
 
-  changed = addStringEntry(body, 'plugin', 'ah-my-openresearch') || changed;
+  changed = addVersionedAmorePluginEntry(body) || changed;
   changed = addStringEntry(body, 'instructions', 'AGENTS.md') || changed;
 
   if (body.default_agent === undefined) {
@@ -570,21 +699,12 @@ function ensureAmoreOpencodeConfig(
     }
   }
 
-  const skills = isJsonObject(body.skills) ? body.skills : {};
-  if (body.skills !== skills) {
-    body.skills = skills;
-    changed = true;
-  }
-  const paths = skills.paths;
-  if (Array.isArray(paths)) {
-    if (!paths.includes(BUNDLED_SKILLS_DIR)) {
-      skills.paths = [...paths, BUNDLED_SKILLS_DIR];
-      changed = true;
-    }
-  } else {
-    skills.paths = [BUNDLED_SKILLS_DIR];
-    changed = true;
-  }
+  // The plugin's config hook injects the bundled skills path at runtime,
+  // resolved from wherever OpenCode installed the package. An absolute path
+  // written at install time goes stale (bunx cache cleanup) and makes
+  // opencode.json machine-specific, so install writes nothing here and
+  // removes entries left behind by older amore versions.
+  changed = removeStaleAmoreSkillsPaths(body) || changed;
 
   if (obsidianMcp) {
     const mcp = isJsonObject(body.mcp) ? body.mcp : {};
@@ -760,6 +880,7 @@ export function writeBootstrapFiles(args: {
   labDir?: string;
   resolvedWikiPath: string | null;
   obsidianMcp: ObsidianMcpEntry | null;
+  modelPreset?: ModelPresetName | null;
 }): BootstrapWriteResult {
   const labRoot = resolve(args.cwd, args.labDir ?? 'lab');
   const labDirDisplay = args.labDir ?? 'lab';
@@ -770,6 +891,9 @@ export function writeBootstrapFiles(args: {
   };
   if (args.resolvedWikiPath) {
     labConfigBody.literature_wiki_path = args.resolvedWikiPath;
+  }
+  if (args.modelPreset) {
+    labConfigBody.personas = personasBlockForPreset(args.modelPreset);
   }
   const labConfigWritten = writeJsonIfMissing(labConfigPath, labConfigBody);
 
@@ -804,7 +928,6 @@ export interface BootstrapResult {
   labConfig: string | null;
   opencodeConfig: string | null;
   agentsFile: string | null;
-  detectedWikiPath: string | null;
   resolvedWikiPath: string | null;
   obsidianMcpWired: boolean;
   warnings: string[];
@@ -830,6 +953,7 @@ export async function bootstrapProjectConfig(
   const cwd = options.cwd ?? process.cwd();
   const wiki = await resolveLiteratureWiki(options);
   const warnings = [...wiki.warnings];
+  const modelPreset = await resolveModelPreset(options);
 
   let mcpEntry: ObsidianMcpEntry | null = null;
   if (wiki.resolvedPath) {
@@ -843,6 +967,7 @@ export async function bootstrapProjectConfig(
     labDir: options.labDir,
     resolvedWikiPath: wiki.resolvedPath,
     obsidianMcp: mcpEntry,
+    modelPreset,
   });
   warnings.push(...written.warnings);
 
@@ -850,7 +975,6 @@ export async function bootstrapProjectConfig(
     labConfig: written.labConfig,
     opencodeConfig: written.opencodeConfig,
     agentsFile: written.agentsFile,
-    detectedWikiPath: wiki.detectedAutoPath,
     resolvedWikiPath: wiki.resolvedPath,
     obsidianMcpWired: written.obsidianMcpWired,
     warnings,
@@ -893,7 +1017,8 @@ the project lab or literature wiki moves.
   - \`{{LAB_DIR}}/index.md\` - generated catalog; manual edits are not kept.
 - {{LITERATURE_WIKI_LINE}}
 - \`opencode.json\` - OpenCode plugin entry. The amore plugin registers the
-  personas, MCPs, and bundled skill path at runtime.
+  personas and bundled skill path at runtime. Optional MCPs are wired only
+  when you choose them during install.
 
 ## Personas
 
@@ -915,8 +1040,7 @@ The plugin's \`pre-write-drafts-only\` hook intercepts tool writes:
 
 - Allowed: \`{{LAB_DIR}}/drafts/**\`, appends to \`{{LAB_DIR}}/log.md\` and
   \`{{LAB_DIR}}/edges.jsonl\`, regeneration of \`{{LAB_DIR}}/index.md\`.
-- Denied: \`{{LAB_DIR}}/SCHEMA.md\`, \`{{LAB_DIR}}/README.md\`, and any
-  \`{{LAB_DIR}}/canon/**\` path. Canon is human-review territory later.
+- Denied: \`{{LAB_DIR}}/SCHEMA.md\` and \`{{LAB_DIR}}/README.md\`.
 - Outside \`{{LAB_DIR}}/\`, agents edit project code normally.
 
 {{WIKI_SECTION}}
@@ -946,11 +1070,10 @@ Run \`amore doctor\` at any point to validate:
 
 ## Don't
 
-- Don't write to \`{{LAB_DIR}}/SCHEMA.md\`, \`{{LAB_DIR}}/README.md\`, or
-  \`{{LAB_DIR}}/canon/**\`.
+- Don't write to \`{{LAB_DIR}}/SCHEMA.md\` or \`{{LAB_DIR}}/README.md\`.
 - Don't invent provenance - every claim must cite either a wiki source or
   an experiment.
-- Don't auto-promote drafts to canon (canon is human-review-only territory).
+- Don't create new lab areas or approval flows unless the project owner asks.
 - Don't translate this file or wiki pages without keeping the original.
 `;
 

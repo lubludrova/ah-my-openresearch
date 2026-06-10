@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import pkg from '../../package.json' with { type: 'json' };
+import { MODEL_PRESET_NAMES, type ModelPresetName } from '../config/constants';
 import { doctor } from './doctor';
 import { install } from './install';
 
@@ -13,6 +14,7 @@ function printHelp(): void {
 Usage:
   amore install [--lab-dir <path>]
                 [--literature-wiki <path> | --no-wiki]
+                [--models openai|anthropic|google]
                 [--with-obsidian-mcp] [--reconcile] [--no-bootstrap]
   amore doctor [--lab-dir <path>] [--repair] [--json]
   amore --help
@@ -30,6 +32,10 @@ Options:
                      vault). Skips auto-detection and any interactive prompt.
                      Warns instead of failing if the path does not exist yet.
   --no-wiki          Skip literature_wiki_path entirely.
+  --models           Persona model preset (openai | anthropic | google).
+                     Writes personas.<name>.model into lab/config.json. In a
+                     TTY install prompts instead; without the flag in
+                     non-interactive mode personas keep the code defaults.
   --with-obsidian-mcp  Auto-wire mcp.obsidian into opencode.json from the wiki's
                      Local REST API plugin (reads its data.json). Required in
                      non-interactive mode; in a TTY install prompts instead.
@@ -40,8 +46,9 @@ Options:
   -h, --help         Show help.
   --version          Show version.
 
-When no wiki flag is set, install auto-detects ~/RL-Wiki or ~/PM-Wiki and
-(in an interactive terminal) asks whether to use, create, or skip a wiki.
+When no wiki flag is set, an interactive install asks whether to use,
+create, or skip a literature wiki; non-interactive installs skip. A wiki
+path is only ever written when you choose one explicitly.
 
 MVP install is local-only: it does not create global config and does not mutate
 OpenCode MCP config.`);
@@ -84,6 +91,7 @@ async function main(args: string[]): Promise<void> {
   let literatureWiki: string | undefined;
   let noWiki = false;
   let withObsidianMcp = false;
+  let models: ModelPresetName | undefined;
   let repair = false;
   let json = false;
 
@@ -139,6 +147,21 @@ async function main(args: string[]): Promise<void> {
       continue;
     }
 
+    if (arg === '--models') {
+      if (command !== 'install') {
+        throw new Error('--models is only valid for amore install.');
+      }
+      const value = readOptionValue(rest, index, '--models');
+      if (!(MODEL_PRESET_NAMES as readonly string[]).includes(value)) {
+        throw new Error(
+          `--models must be one of: ${MODEL_PRESET_NAMES.join(', ')}.`,
+        );
+      }
+      models = value as ModelPresetName;
+      index += 1;
+      continue;
+    }
+
     if (arg === '--repair') {
       if (command !== 'doctor') {
         throw new Error('--repair is only valid for amore doctor.');
@@ -180,6 +203,7 @@ async function main(args: string[]): Promise<void> {
       literatureWiki,
       noWiki,
       withObsidianMcp,
+      models,
     });
     return;
   }

@@ -30,8 +30,8 @@ This directory is managed by ah-my-openresearch (\`amore\`) for this project.
 
 ## Human review
 
-In MVP, all artifacts stay in \`drafts/\`. Review, edit, or delete drafts directly
-in Obsidian or your editor. There is no \`canon/\` directory until Phase 8.
+All agent-written artifacts stay in \`drafts/\`. Review, edit, or delete drafts
+directly in Obsidian or your editor.
 
 ## Boundaries
 

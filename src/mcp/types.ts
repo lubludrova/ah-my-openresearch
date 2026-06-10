@@ -1,6 +1,6 @@
 // Shape mirrors alvinunreal/oh-my-opencode-slim/src/mcp/types.ts so the
-// values returned by createBuiltinMcps() can be returned directly under the
-// `mcp` key of the plugin export (consumed by OpenCode without translation).
+// values returned by createBuiltinMcps() can be written directly under the
+// `mcp` key in project opencode.json when a user opts in.
 //
 // The amore-specific McpMeta lives next to it: it carries install hints and
 // required-level for our own CLI (`amore install` / `amore doctor`), and is

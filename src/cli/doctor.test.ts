@@ -138,12 +138,75 @@ describe('doctor', () => {
           check.message.includes('agent.build.disable'),
       ),
     ).toBe(true);
+    // skills.paths is no longer required in opencode.json — the plugin
+    // injects the bundled path at runtime, so the skills check stays ok.
+    expect(
+      result.checks.some(
+        (check) => check.label === 'opencode skills' && check.status === 'ok',
+      ),
+    ).toBe(true);
+  });
+
+  test('reports resolved persona model providers informationally', async () => {
+    const projectRoot = await tempProject();
+    await createInstalledProject(projectRoot);
+
+    const result = await runDoctor({ cwd: projectRoot });
+
+    expect(result.exitCode).toBe(0);
     expect(
       result.checks.some(
         (check) =>
-          check.label === 'opencode skills' &&
+          check.label === 'persona models' &&
+          check.status === 'ok' &&
+          check.message.includes('openai'),
+      ),
+    ).toBe(true);
+  });
+
+  test('fails when lab/config.json is invalid', async () => {
+    const projectRoot = await tempProject();
+    const labDir = await createInstalledProject(projectRoot);
+    await writeFile(
+      resolve(labDir, 'config.json'),
+      JSON.stringify({ schema_version: 'v1.0' }),
+      'utf8',
+    );
+
+    const result = await runDoctor({ cwd: projectRoot });
+
+    expect(result.exitCode).toBe(1);
+    expect(
+      result.checks.some(
+        (check) =>
+          check.label === 'lab/config.json' &&
           check.status === 'error' &&
-          check.message.includes('skills.paths'),
+          check.message.includes('schema_version'),
+      ),
+    ).toBe(true);
+  });
+
+  test('warns on machine-local amore skills paths in opencode.json', async () => {
+    const projectRoot = await tempProject();
+    await createInstalledProject(projectRoot);
+    const configPath = resolve(projectRoot, 'opencode.json');
+    const config = JSON.parse(await Bun.file(configPath).text());
+    config.skills = {
+      paths: [
+        '/home/other/.bun/install/cache/ah-my-openresearch@0.1.0/src/skills',
+      ],
+    };
+    await writeFile(configPath, JSON.stringify(config), 'utf8');
+
+    const result = await runDoctor({ cwd: projectRoot });
+
+    expect(result.exitCode).toBe(2);
+    expect(
+      result.checks.some(
+        (check) =>
+          check.label === 'opencode skills.paths' &&
+          check.status === 'warn' &&
+          check.message.includes('re-run amore install'),
       ),
     ).toBe(true);
   });

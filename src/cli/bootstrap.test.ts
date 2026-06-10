@@ -11,8 +11,10 @@ import {
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
+import pkg from '../../package.json' with { type: 'json' };
 import { bootstrapProjectConfig } from './bootstrap';
 
+const AMORE_PLUGIN_SPEC = `ah-my-openresearch@${pkg.version}`;
 const tempDirs: string[] = [];
 
 async function tempProject(): Promise<string> {
@@ -22,15 +24,15 @@ async function tempProject(): Promise<string> {
 }
 
 async function tempHome(
-  withWiki?: 'RL-Wiki' | 'PM-Wiki' | 'both',
+  withWiki?: 'primary-wiki' | 'notes-wiki' | 'both',
 ): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), 'amore-bootstrap-home-'));
   tempDirs.push(dir);
-  if (withWiki === 'RL-Wiki' || withWiki === 'both') {
-    mkdirSync(join(dir, 'RL-Wiki'), { recursive: true });
+  if (withWiki === 'primary-wiki' || withWiki === 'both') {
+    mkdirSync(join(dir, 'primary-wiki'), { recursive: true });
   }
-  if (withWiki === 'PM-Wiki' || withWiki === 'both') {
-    mkdirSync(join(dir, 'PM-Wiki'), { recursive: true });
+  if (withWiki === 'notes-wiki' || withWiki === 'both') {
+    mkdirSync(join(dir, 'notes-wiki'), { recursive: true });
   }
   return dir;
 }
@@ -51,69 +53,68 @@ function expectString(value: string | null): string {
   return value;
 }
 
+function seedWikiWithContract(home: string, name: string): void {
+  mkdirSync(join(home, name), { recursive: true });
+  writeFileSync(join(home, name, 'RULES.md'), '# rules\n', 'utf8');
+}
+
 describe('bootstrapProjectConfig — basics', () => {
-  test('writes opencode.json + lab/config.json with auto-detected RL-Wiki', async () => {
+  test('writes lab/config.json with an explicitly chosen wiki path', async () => {
     const cwd = await tempProject();
-    const home = await tempHome('RL-Wiki');
+    const home = await tempHome();
+    seedWikiWithContract(home, 'research-wiki');
     const result = await bootstrapProjectConfig({
       cwd,
       homeDir: home,
       interactive: false,
+      literatureWiki: '~/research-wiki',
     });
     expect(result.labConfig).toBe(join(cwd, 'lab', 'config.json'));
-    expect(result.detectedWikiPath).toBe('~/RL-Wiki');
-    expect(result.resolvedWikiPath).toBe('~/RL-Wiki');
+    expect(result.resolvedWikiPath).toBe('~/research-wiki');
     const written = JSON.parse(
       await Bun.file(expectString(result.labConfig)).text(),
     );
-    expect(written.literature_wiki_path).toBe('~/RL-Wiki');
+    expect(written.literature_wiki_path).toBe('~/research-wiki');
     expect(result.warnings).toEqual([]);
   });
 
   test('writes starter AGENTS.md with project-specific paths', async () => {
     const cwd = await tempProject();
-    const home = await tempHome('RL-Wiki');
+    const home = await tempHome();
+    seedWikiWithContract(home, 'research-wiki');
     const result = await bootstrapProjectConfig({
       cwd,
       homeDir: home,
       interactive: false,
+      literatureWiki: '~/research-wiki',
     });
     expect(result.agentsFile).toBe(join(cwd, 'AGENTS.md'));
     const written = await Bun.file(expectString(result.agentsFile)).text();
     expect(written).toContain(`# ${basename(cwd)}`);
     expect(written).toContain('lab_dir: lab');
-    expect(written).toContain('literature_wiki_path: "~/RL-Wiki"');
-    expect(written).toContain('~/RL-Wiki/RULES.md');
+    expect(written).toContain('literature_wiki_path: "~/research-wiki"');
+    expect(written).toContain('~/research-wiki/RULES.md');
     expect(written).not.toContain('backend:');
     expect(written).not.toContain('runs_dir');
     expect(written).not.toContain('wandb');
     expect(written).not.toContain('ingest_prompt.md');
   });
 
-  test('prefers RL-Wiki over PM-Wiki on auto-detect', async () => {
+  test('never auto-detects a wiki in non-interactive mode', async () => {
     const cwd = await tempProject();
+    // Wikis named like the author's personal vaults exist under home —
+    // install must NOT silently pick them up.
     const home = await tempHome('both');
     const result = await bootstrapProjectConfig({
       cwd,
       homeDir: home,
       interactive: false,
     });
-    expect(result.detectedWikiPath).toBe('~/RL-Wiki');
-    expect(result.resolvedWikiPath).toBe('~/RL-Wiki');
+    expect(result.resolvedWikiPath).toBeNull();
+    expect(result.wikiKind).toBe('skip');
   });
 
-  test('falls back to PM-Wiki when only PM-Wiki exists', async () => {
-    const cwd = await tempProject();
-    const home = await tempHome('PM-Wiki');
-    const result = await bootstrapProjectConfig({
-      cwd,
-      homeDir: home,
-      interactive: false,
-    });
-    expect(result.resolvedWikiPath).toBe('~/PM-Wiki');
-  });
-
-  test('omits literature_wiki_path when no wiki found and non-interactive', async () => {
+  test('omits literature_wiki_path when non-interactive without a flag', async () => {
     const cwd = await tempProject();
     const home = await tempHome();
     const result = await bootstrapProjectConfig({
@@ -121,7 +122,6 @@ describe('bootstrapProjectConfig — basics', () => {
       homeDir: home,
       interactive: false,
     });
-    expect(result.detectedWikiPath).toBeNull();
     expect(result.resolvedWikiPath).toBeNull();
     const written = JSON.parse(
       await Bun.file(expectString(result.labConfig)).text(),
@@ -141,23 +141,20 @@ describe('bootstrapProjectConfig — basics', () => {
     const written = JSON.parse(
       await Bun.file(expectString(result.opencodeConfig)).text(),
     );
-    expect(written.plugin).toEqual(['ah-my-openresearch']);
+    expect(written.plugin).toEqual([AMORE_PLUGIN_SPEC]);
     expect(written.instructions).toEqual(['AGENTS.md']);
     expect(written.$schema).toBe('https://opencode.ai/config.json');
     expect(written.default_agent).toBe('orchestrator');
     expect(written.agent.build.disable).toBe(true);
     expect(written.agent.plan.disable).toBe(true);
-    expect(written.skills.paths.length).toBe(1);
-    expect(written.skills.paths[0]).toEndWith('src/skills');
-    expect(existsSync(written.skills.paths[0])).toBe(true);
-    expect(
-      existsSync(join(written.skills.paths[0], 'wiki-ingest', 'SKILL.md')),
-    ).toBe(true);
+    // The plugin injects the bundled skills path at runtime; install must
+    // not write machine-local paths into opencode.json.
+    expect(written.skills).toBeUndefined();
   });
 
   test('does not overwrite existing lab/config.json', async () => {
     const cwd = await tempProject();
-    const home = await tempHome('RL-Wiki');
+    const home = await tempHome('primary-wiki');
     mkdirSync(join(cwd, 'lab'), { recursive: true });
     writeFileSync(
       join(cwd, 'lab', 'config.json'),
@@ -209,7 +206,7 @@ describe('bootstrapProjectConfig — basics', () => {
     const merged = JSON.parse(
       await Bun.file(join(cwd, 'opencode.json')).text(),
     );
-    expect(merged.plugin).toEqual(['some-other-plugin', 'ah-my-openresearch']);
+    expect(merged.plugin).toEqual(['some-other-plugin', AMORE_PLUGIN_SPEC]);
     expect(merged.instructions).toEqual(['CLAUDE.md', 'AGENTS.md']);
     expect(merged.default_agent).toBe('orchestrator');
     expect(merged.agent.build).toEqual({
@@ -218,17 +215,122 @@ describe('bootstrapProjectConfig — basics', () => {
     });
     expect(merged.agent.plan.disable).toBe(true);
     expect(merged.agent.custom).toEqual({ mode: 'primary' });
-    expect(merged.skills.paths).toContain('/custom/skills');
-    const bundledPath = merged.skills.paths.find((path: string) =>
-      path.endsWith('src/skills'),
-    );
-    expect(existsSync(bundledPath)).toBe(true);
+    expect(merged.skills.paths).toEqual(['/custom/skills']);
     expect(merged.mcp.custom).toEqual({
       type: 'remote',
       url: 'https://example.test/mcp',
     });
     expect(merged.theme).toBe('system');
     expect(merged.custom_user_field).toEqual({ nested: true });
+  });
+
+  test('removes stale amore bundled skills paths, keeps user paths', async () => {
+    const cwd = await tempProject();
+    const home = await tempHome();
+    writeFileSync(
+      join(cwd, 'opencode.json'),
+      JSON.stringify({
+        skills: {
+          paths: [
+            '/custom/skills',
+            '/home/me/.bun/install/cache/ah-my-openresearch@0.1.3/src/skills',
+          ],
+        },
+      }),
+      'utf8',
+    );
+    await bootstrapProjectConfig({ cwd, homeDir: home, interactive: false });
+    const merged = JSON.parse(
+      await Bun.file(join(cwd, 'opencode.json')).text(),
+    );
+    expect(merged.skills.paths).toEqual(['/custom/skills']);
+  });
+
+  test('writes the personas model preset block when models is given', async () => {
+    const cwd = await tempProject();
+    const home = await tempHome();
+    const result = await bootstrapProjectConfig({
+      cwd,
+      homeDir: home,
+      interactive: false,
+      models: 'anthropic',
+    });
+    const written = JSON.parse(
+      await Bun.file(expectString(result.labConfig)).text(),
+    );
+    expect(Object.keys(written.personas).sort()).toEqual([
+      'coder',
+      'council',
+      'librarian',
+      'orchestrator',
+      'prospector',
+      'writer',
+    ]);
+    expect(written.personas.orchestrator.model).toBe(
+      'anthropic/claude-sonnet-4-6',
+    );
+    expect(written.personas.librarian.model).toBe('anthropic/claude-haiku-4-5');
+  });
+
+  test('omits the personas block without models in non-interactive mode', async () => {
+    const cwd = await tempProject();
+    const home = await tempHome();
+    const result = await bootstrapProjectConfig({
+      cwd,
+      homeDir: home,
+      interactive: false,
+    });
+    const written = JSON.parse(
+      await Bun.file(expectString(result.labConfig)).text(),
+    );
+    expect(written.personas).toBeUndefined();
+  });
+
+  test('drops the skills block when only stale amore paths remain', async () => {
+    const cwd = await tempProject();
+    const home = await tempHome();
+    writeFileSync(
+      join(cwd, 'opencode.json'),
+      JSON.stringify({
+        skills: {
+          paths: [
+            '/home/me/.cache/opencode/packages/ah-my-openresearch/src/skills',
+          ],
+        },
+      }),
+      'utf8',
+    );
+    await bootstrapProjectConfig({ cwd, homeDir: home, interactive: false });
+    const merged = JSON.parse(
+      await Bun.file(join(cwd, 'opencode.json')).text(),
+    );
+    expect(merged.skills).toBeUndefined();
+  });
+
+  test('normalizes stale amore plugin entries to the current package version', async () => {
+    const cwd = await tempProject();
+    const home = await tempHome();
+    writeFileSync(
+      join(cwd, 'opencode.json'),
+      JSON.stringify({
+        plugin: [
+          'ah-my-openresearch',
+          'other-plugin',
+          'ah-my-openresearch@0.1.0',
+        ],
+      }),
+      'utf8',
+    );
+    const result = await bootstrapProjectConfig({
+      cwd,
+      homeDir: home,
+      interactive: false,
+    });
+    expect(result.opencodeConfigAction).toBe('updated');
+    const written = JSON.parse(
+      await Bun.file(join(cwd, 'opencode.json')).text(),
+    );
+    expect(written.plugin).toEqual([AMORE_PLUGIN_SPEC, 'other-plugin']);
   });
 
   test('uses the next backup name when opencode.json.bak already exists', async () => {
@@ -318,7 +420,7 @@ describe('bootstrapProjectConfig — basics', () => {
 
   test('does not overwrite existing AGENTS.md', async () => {
     const cwd = await tempProject();
-    const home = await tempHome('RL-Wiki');
+    const home = await tempHome('primary-wiki');
     writeFileSync(join(cwd, 'AGENTS.md'), '# Custom rules\n', 'utf8');
     const result = await bootstrapProjectConfig({
       cwd,
@@ -350,7 +452,7 @@ describe('bootstrapProjectConfig — basics', () => {
 describe('bootstrapProjectConfig — literature wiki resolution', () => {
   test('--literature-wiki explicit path beats auto-detect', async () => {
     const cwd = await tempProject();
-    const home = await tempHome('RL-Wiki');
+    const home = await tempHome('primary-wiki');
     const customWiki = await tempProject();
     await writeFile(join(customWiki, 'RULES.md'), '# my wiki\n', 'utf8');
     const result = await bootstrapProjectConfig({
@@ -392,9 +494,9 @@ describe('bootstrapProjectConfig — literature wiki resolution', () => {
     expect(result.warnings[0]).toContain('no RULES.md');
   });
 
-  test('--no-wiki omits literature_wiki_path even when auto-detect would find one', async () => {
+  test('--no-wiki omits literature_wiki_path', async () => {
     const cwd = await tempProject();
-    const home = await tempHome('RL-Wiki');
+    const home = await tempHome('primary-wiki');
     const result = await bootstrapProjectConfig({
       cwd,
       homeDir: home,
@@ -402,16 +504,15 @@ describe('bootstrapProjectConfig — literature wiki resolution', () => {
       noWiki: true,
     });
     expect(result.resolvedWikiPath).toBeNull();
-    expect(result.detectedWikiPath).toBe('~/RL-Wiki');
     const written = JSON.parse(
       await Bun.file(expectString(result.labConfig)).text(),
     );
     expect(written.literature_wiki_path).toBeUndefined();
   });
 
-  test('interactive [u] picks the auto-detected path when accepted blank', async () => {
+  test('interactive [u] offers no auto-suggestion; blank answer skips', async () => {
     const cwd = await tempProject();
-    const home = await tempHome('RL-Wiki');
+    const home = await tempHome('primary-wiki');
     let calls = 0;
     const result = await bootstrapProjectConfig({
       cwd,
@@ -425,19 +526,24 @@ describe('bootstrapProjectConfig — literature wiki resolution', () => {
           expect(q).toContain('[s]');
           return 'u';
         }
-        // second prompt: path with auto-detected suggestion
-        expect(q).toContain('~/RL-Wiki');
-        return '';
+        if (calls === 2) {
+          // path prompt must not suggest any auto-detected vaults
+          expect(q).not.toContain('primary-wiki');
+          return '';
+        }
+        // third prompt: persona model preset menu
+        expect(q).toContain('[s] skip');
+        return 's';
       },
     });
-    expect(calls).toBe(2);
-    expect(result.wikiKind).toBe('use');
-    expect(result.resolvedWikiPath).toBe('~/RL-Wiki');
+    expect(calls).toBe(3);
+    expect(result.wikiKind).toBe('skip');
+    expect(result.resolvedWikiPath).toBeNull();
   });
 
   test('interactive [u] with an explicit custom path', async () => {
     const cwd = await tempProject();
-    const home = await tempHome('RL-Wiki');
+    const home = await tempHome('primary-wiki');
     const customWiki = await tempProject();
     await writeFile(join(customWiki, 'RULES.md'), '# rules\n', 'utf8');
     let calls = 0;
@@ -478,7 +584,7 @@ describe('bootstrapProjectConfig — literature wiki resolution', () => {
 
   test('interactive Cyrillic с creates a new starter wiki', async () => {
     const cwd = await tempProject();
-    const home = await tempHome('RL-Wiki');
+    const home = await tempHome('primary-wiki');
     let calls = 0;
     const result = await bootstrapProjectConfig({
       cwd,
@@ -489,7 +595,7 @@ describe('bootstrapProjectConfig — literature wiki resolution', () => {
         return calls === 1 ? '\u0441' : ''; // Cyrillic small es, not Latin c.
       },
     });
-    expect(calls).toBe(2);
+    expect(calls).toBe(3); // wiki menu + wiki name + model preset menu
     expect(result.wikiKind).toBe('create');
     expect(result.resolvedWikiPath).toBe('./llm-wiki');
     expect(existsSync(join(cwd, 'llm-wiki', 'RULES.md'))).toBe(true);
@@ -514,7 +620,7 @@ describe('bootstrapProjectConfig — literature wiki resolution', () => {
 
   test('interactive [s] skips wiki entirely', async () => {
     const cwd = await tempProject();
-    const home = await tempHome('RL-Wiki');
+    const home = await tempHome('primary-wiki');
     const result = await bootstrapProjectConfig({
       cwd,
       homeDir: home,
@@ -656,10 +762,10 @@ describe('bootstrapProjectConfig — Obsidian MCP auto-detect', () => {
       interactive: true,
       prompt: async () => {
         calls += 1;
-        return ''; // accept default Y
+        return ''; // accept defaults (model preset menu, then MCP Y)
       },
     });
-    expect(calls).toBe(1);
+    expect(calls).toBe(2); // model preset menu + MCP confirm
     expect(result.obsidianMcpWired).toBe(true);
     const written = JSON.parse(
       await Bun.file(expectString(result.opencodeConfig)).text(),
@@ -748,7 +854,7 @@ describe('bootstrapProjectConfig — Obsidian MCP auto-detect', () => {
     const written = JSON.parse(
       await Bun.file(join(cwd, 'opencode.json')).text(),
     );
-    expect(written.plugin).toEqual(['other', 'ah-my-openresearch']);
+    expect(written.plugin).toEqual(['other', AMORE_PLUGIN_SPEC]);
     expect(written.mcp.obsidian.environment.OBSIDIAN_API_KEY).toBe('MERGEKEY');
   });
 

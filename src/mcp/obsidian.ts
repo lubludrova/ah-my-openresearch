@@ -1,6 +1,6 @@
 // MCP registration: obsidian-mcp-server
 // Upstream: https://github.com/cyanheads/obsidian-mcp-server
-// Purpose: read/write the outside literature wiki (e.g. ~/RL-Wiki) over the
+// Purpose: read/write the outside literature wiki over the
 // Local REST API plugin inside Obsidian. The project lab/ is written through
 // host-native tools (Read/Write/Bash) + Phase 6 write-boundary hook, not
 // through this MCP.
@@ -44,7 +44,7 @@ export const obsidian: LocalMcpConfig = {
 
 export const obsidianMeta: McpMeta = {
   upstream: 'https://github.com/cyanheads/obsidian-mcp-server',
-  required: 'required',
+  required: 'optional',
   install_hint:
     'No global install required — bunx fetches obsidian-mcp-server@latest on demand. ' +
     'Prerequisites: install the "Local REST API" plugin (v4+) inside Obsidian, ' +

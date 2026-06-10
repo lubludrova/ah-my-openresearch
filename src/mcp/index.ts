@@ -1,8 +1,8 @@
-// MCP registry for OpenCode plugin wiring.
+// Optional MCP template registry.
 //
 // Two parallel exports:
 //   - createBuiltinMcps(disabled): the OpenCode-shaped Record<name, McpConfig>
-//     suitable for the plugin's `mcp` field. Mirrors the omo-slim pattern.
+//     suitable for writing into project opencode.json when a user opts in.
 //   - MCP_META: amore-only install metadata for CLI hints (`amore install`,
 //     `amore doctor`). Not consumed by OpenCode.
 

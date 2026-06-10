@@ -1,4 +1,5 @@
 import { basename, relative } from 'node:path';
+import type { ModelPresetName } from '../config/constants';
 import { createLab, validateLabLayout } from '../lab';
 import {
   type BootstrapOptions,
@@ -6,6 +7,7 @@ import {
   type WikiResolution,
   maybeReadObsidianMcp,
   resolveLiteratureWiki,
+  resolveModelPreset,
   writeBootstrapFiles,
 } from './bootstrap';
 
@@ -21,6 +23,8 @@ export interface InstallOptions {
   noWiki?: boolean;
   /** Opt-in to wiring Obsidian MCP into opencode.json (needed in non-TTY). */
   withObsidianMcp?: boolean;
+  /** Persona model preset from --models <name>. */
+  models?: ModelPresetName;
 }
 
 const SECTION_WIDTH = 60;
@@ -104,6 +108,7 @@ function bootstrapOptionsFromInstall(
     literatureWiki: options.literatureWiki,
     noWiki: options.noWiki,
     withObsidianMcp: options.withObsidianMcp,
+    models: options.models,
   };
 }
 
@@ -164,6 +169,16 @@ export async function install(options: InstallOptions = {}): Promise<void> {
   out();
   const wiki = await resolveLiteratureWiki(bootstrapOpts);
 
+  // ── B1b: Persona models ─────────────────────────────────────────────
+  section('Persona models');
+  const modelPreset = await resolveModelPreset(bootstrapOpts);
+  if (modelPreset) {
+    out(`    Using the "${modelPreset}" preset for all six personas.`);
+  } else {
+    out('    Skipped — personas use the code defaults (openai preset).');
+    out('    Override later via personas.<name>.model in lab/config.json.');
+  }
+
   // ── B2: Obsidian MCP (only if a wiki path was chosen) ──────────────
   let mcpEntry: ObsidianMcpEntry | null = null;
   let mcpPluginFound = false;
@@ -191,6 +206,7 @@ export async function install(options: InstallOptions = {}): Promise<void> {
     labDir: options.labDir,
     resolvedWikiPath: wiki.resolvedPath,
     obsidianMcp: mcpEntry,
+    modelPreset,
   });
 
   section('Setup');
@@ -202,7 +218,11 @@ export async function install(options: InstallOptions = {}): Promise<void> {
     const wikiPart = wiki.resolvedPath
       ? `literature_wiki_path=${wiki.resolvedPath}`
       : 'no literature_wiki_path';
-    bulletOk('Lab config', `${labRelative}/config.json (${wikiPart})`);
+    const modelPart = modelPreset ? `, models=${modelPreset}` : '';
+    bulletOk(
+      'Lab config',
+      `${labRelative}/config.json (${wikiPart}${modelPart})`,
+    );
   }
   if (written.opencodeConfig) {
     const mcpPart = written.obsidianMcpWired ? ' + mcp.obsidian' : '';
@@ -210,7 +230,7 @@ export async function install(options: InstallOptions = {}): Promise<void> {
       written.opencodeConfigAction === 'updated' ? 'updated' : 'created';
     bulletOk(
       'OpenCode config',
-      `opencode.json ${action} (plugin + skills + disabled build/plan${mcpPart})`,
+      `opencode.json ${action} (plugin + disabled build/plan${mcpPart})`,
     );
     if (written.opencodeConfigBackup) {
       bulletOk(
@@ -219,7 +239,11 @@ export async function install(options: InstallOptions = {}): Promise<void> {
       );
     }
   } else {
-    bulletOk('OpenCode config', 'opencode.json already configured');
+    const keptMessage =
+      written.opencodeConfigAction === 'kept'
+        ? 'opencode.json not changed (already configured or see warning)'
+        : 'opencode.json already configured';
+    bulletOk('OpenCode config', keptMessage);
   }
   if (written.agentsFile) {
     bulletOk('Agent guide', 'AGENTS.md');
