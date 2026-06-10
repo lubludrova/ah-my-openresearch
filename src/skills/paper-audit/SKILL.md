@@ -45,14 +45,13 @@ verdict is loud signal, not a gate.
   session.
 - **AUDIT_DIR** — `<paper-dir>/.audit/<YYYY-MM-DD>_run<NN>/`.
   Stores per-phase JSON + Markdown reports and per-item traces.
-- **REVIEWER_MODEL** — frontier model from a different family than the
-  executor. Resolution order:
+- **REVIEWER_MODEL** — configured reviewer model, preferably from a
+  different family than the executor. Resolution order:
   1. `--reviewer <model>` flag.
   2. `<project>/lab/config.json` `audit.reviewer_model`.
   3. Global config `audit.reviewer_model`.
-  4. Default: `openai/gpt-5.5` if executor is Anthropic; or
-     `anthropic/claude-sonnet-4` if executor is OpenAI; pick a
-     different family.
+  4. Host/persona default if no reviewer override is configured.
+  This skill does not name or choose concrete models.
 - **CONTEXT_POLICY = fresh** — every audit phase uses a new reviewer
   thread. No carry-over from previous runs or other phases.
 - **DEFAULT_PHASES = claim,citation** — experiment-audit is opt-in
@@ -431,7 +430,7 @@ Process:
 - Phases: `claim,citation`.
 - Steps 0-2: extract 47 claim candidates, resolve evidence for 45,
   miss 2 (referenced figs not yet generated).
-- Reviewer (gpt-5.5) flags 1 INFLATED, 1 SCOPE, 1 MISSING — verdict
+- Reviewer flags 1 INFLATED, 1 SCOPE, 1 MISSING — verdict
   `FAIL`.
 - Step 3: 29 bib entries, 11 KEEP, 14 FIX, 3 REPLACE, 1 REMOVE —
   verdict `FAIL`.

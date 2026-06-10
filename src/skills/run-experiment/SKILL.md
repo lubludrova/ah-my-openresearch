@@ -214,8 +214,9 @@ write a separate `failed` entry for partial launches — they are still
 
 ### Step 9 — Regenerate lab/index.md
 
-Trigger the indexer (`src/lab/indexer.ts`) so the new `status: running`
-shows up. Skip if no exp drafts changed (defensive).
+Run `amore doctor --repair` so the generated catalog shows the new
+`status: running`. Skip if no exp drafts changed (defensive). Do not
+hand-edit `lab/index.md`; it is generated.
 
 ### Step 10 — Return launch summary
 

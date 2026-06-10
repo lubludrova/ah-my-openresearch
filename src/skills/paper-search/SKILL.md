@@ -81,8 +81,8 @@ files in `<RAW_DIR>` (raw is immutable per the llm-wiki convention).
 `$ARGUMENTS` parsed as:
 
 1. A required `<topic-or-query>` — the search string. Plain words OK
-   (the skill assembles backend-specific syntax). For arXiv-id-only
-   lookups → use the `arxiv-fetch` skill (defer P1) instead.
+   (the skill assembles backend-specific syntax). arXiv-id-only lookups
+   are handled directly by this skill.
 2. `--venue <list>` — comma-separated subset of TOP_VENUES to
    restrict to. Default: all A+/A/A− tiers + arXiv preprints.
 3. `--since YYYY` — minimum publication year. Default
@@ -379,8 +379,7 @@ Process:
 - Output candidate list with PDF status `not-attempted (--no-download)`.
 
 Useful for first-pass literature scan; user picks which to download
-separately by re-running specific entries via `arxiv-fetch` (future
-skill) or by manually invoking with `--download 3`.
+separately by re-running specific entries with `--download 3`.
 
 ### Example 4 — single arXiv id
 

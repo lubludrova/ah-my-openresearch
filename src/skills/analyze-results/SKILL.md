@@ -218,7 +218,8 @@ explains why (no parseable metrics / all seeds missing / user abandoned).
 
 ### Step 8 — Regenerate lab/index.md
 
-Trigger the indexer so the new status surfaces.
+Run `amore doctor --repair` so the generated catalog reflects the new
+status. Do not hand-edit `lab/index.md`; it is generated.
 
 ### Step 9 — Return handoff to caller
 

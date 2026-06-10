@@ -225,4 +225,5 @@ Affected: [[exp:<slug>-<YYYY-MM-DD>]]
 
 - Orchestrator persona (`src/agents/orchestrator.ts`) — invokes this
   skill in its Workflow Phase 4 (Delegate).
-- `lab-ingest` — specialists call this to land their write artifacts.
+- Lab artifact skills (`claim-extract`, `idea-creator`, `run-experiment`,
+  `analyze-results`) — specialists use these to land typed draft updates.

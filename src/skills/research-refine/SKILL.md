@@ -35,7 +35,8 @@ User input (PROBLEM + vague APPROACH)
 
 ## Constants
 
-- **REVIEWER_MODEL = `gpt-5.5`** — Reviewer model used when delegated review is available.
+- **REVIEWER_MODEL** — configured reviewer model used when delegated
+  review is available. This skill does not name or choose models.
 - **WIKI_PATH** — outside literature wiki path, configured per project.
 - **LAB_ROOT = `<project>/lab`** — amore project lab.
 - **LAB_DRAFTS = `<project>/lab/drafts`** — only write destination for saved refinement artifacts.

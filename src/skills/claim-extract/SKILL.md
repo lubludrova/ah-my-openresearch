@@ -7,8 +7,8 @@ description: >-
   status, applies the status-transition matrix, enforces allowed-wording rules,
   and writes valid `claim-*.md` drafts plus the supporting edges in
   `edges.jsonl`. Use when user says "extract claims from exp:<id>",
-  "materialize the result", "record this finding as a claim", "promote results
-  to claims", or when @librarian receives the "candidate claim hooks" handoff
+  "materialize the result", "record this finding as a claim", "turn results
+  into claims", or when @librarian receives the "candidate claim hooks" handoff
   from @coder analyze-results. Lab-side only; literature claims are handled by
   wiki-ingest's Step B during paper ingest.
 argument-hint: "<exp-id> [--max-claims N] [--judge <model>] [--update | --create] [--dry-run]"
@@ -187,7 +187,7 @@ analyze-results."
 If `--judge <model>` is set, spawn a fresh judge thread:
 
 ```
-You are a cross-model judge. The executor (Claude) has finalized
+You are a cross-model judge. The executor has finalized
 an experiment with the following:
 
   exp: <exp_id>
@@ -425,7 +425,8 @@ Affected: [[claim:<slug>]], [[exp:<slug>-<date>]]
 
 ### Step 11 — Regenerate lab/index.md
 
-Trigger the indexer so new/updated claims surface in the inventory.
+Run `amore doctor --repair` so new/updated claims surface in the
+generated inventory. Do not hand-edit `lab/index.md`; it is generated.
 
 ### Step 12 — Return handoff
 
@@ -521,7 +522,7 @@ Process:
 
 ### Example 4 — judge downgrade
 
-Input: `exp:big-claim-2026-06-04 --judge anthropic/claude-sonnet-4`
+Input: `exp:big-claim-2026-06-04 --judge <configured-judge-model>`
 
 Process:
 - Heuristic says `high` (n=5, Δ>2σ, supports).

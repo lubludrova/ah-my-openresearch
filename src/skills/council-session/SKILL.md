@@ -1,7 +1,7 @@
 ---
 name: council-session
 description: Universal multi-LLM council fan-out. Spawn N councillors of different models/roles in parallel against the same question + artifacts, collect their independent responses, and return a structured report (Councillor Details + Council Summary data + deterministic verdict). Callable by the user directly, by the @council persona (which adds Council Response synthesis on top), or by any other agent that needs adversarial / independent input. Universal — works on any artifact (claim draft, exp draft, idea, paper section, plan, idea-vs-claim contradiction). Use when user says "council", "get multiple opinions", "adversarial review of <X>", "kill argument on this", "vet this plan", "stress-test", or when an agent's confidence on a high-stakes decision warrants independent input.
-argument-hint: <question> [--artifact <path>...] [--goal advice|decision|review|plan] [--role adversarial|supportive|expert|methodologist|mixed] [--members N] [--roster <name>] [--budget <USD>]
+argument-hint: <question> [--artifact <path>...] [--goal advice|decision|review|plan] [--role adversarial|supportive|expert|methodologist|mixed] [--members N] [--budget <USD>]
 ---
 
 # Council Session
@@ -29,17 +29,21 @@ deterministic verdict and decides.
 
 - **LAB_LOG** — `<project>/lab/log.md`. Append one `council` entry per
   session per D20.
-- **ROSTER_CONFIG** — resolution order:
-  1. `--roster <name>` flag → look up named preset in config.
-  2. `<project>/lab/config.json` `council.roster` field.
-  3. `~/.config/opencode/ah-my-openresearch.json` `council.roster`.
-  4. Built-in default (see DEFAULT_ROSTER).
-- **DEFAULT_ROSTER** — 3 councillors, diverse model families:
-  - `adversarial` × `anthropic/claude-sonnet-4` (strong-cheap, adversarial bias)
-  - `expert` × `openai/gpt-5.5` (frontier, broad knowledge)
-  - `methodologist` × `google/gemini-2-pro` (alt-family, rigor focus)
-  - If a model family is unavailable, fall back to the next strongest
-    in that family; never silently switch role.
+- **ROSTER_CONFIG** — the panel is the set of registered
+  `councillor-*` subagents. The amore plugin registers them at startup
+  from, in priority order:
+  1. `<project>/lab/config.json` → `personas.council.councillors`
+     (array of `{model, role?}`).
+  2. `~/.config/opencode/ah-my-openresearch.json` → same field.
+  3. Built-in default (see DEFAULT_ROSTER).
+  To change the panel, edit the config and restart the host — do not
+  invent councillors that are not registered.
+- **DEFAULT_ROSTER** — 3 councillors, diverse model families
+  (`DEFAULT_COUNCILLORS` in `src/agents/council.ts`). Skills do not
+  name or choose models; registered subagents carry their configured
+  model at runtime.
+  - If a councillor's provider is not configured in the host, its
+    invocation fails; record the failure — never silently swap models.
 - **MAX_MEMBERS = 7** — hard cap. Larger panels burn budget without
   improving verdict reliability past N≈5.
 - **MIN_MEMBERS = 1** — single-councillor mode allowed for kill-argument-style
@@ -64,8 +68,10 @@ deterministic verdict and decides.
   in `src/agents/council.ts`.
 - Optional `--role` — override roster's default roles, apply this role
   to ALL councillors (degenerate-but-useful, e.g. all-adversarial).
+  Role overrides are passed in the task message framing — registered
+  councillors keep their system prompt, so state the override
+  explicitly: "For this session, adopt this framing instead: <framing>".
 - Optional `--members N` — override roster size.
-- Optional `--roster <name>` — named preset (see ROSTER_CONFIG).
 - Optional `--budget <USD>` — soft cap; track per-call cost and stop
   spawning new councillors when projected total exceeds budget. Already
   spawned ones complete.
@@ -86,70 +92,62 @@ deterministic verdict and decides.
 
 ### Step 1 — Resolve roster
 
-1. Apply ROSTER_CONFIG order to get a list of councillors:
+1. List the registered `councillor-*` subagents (the plugin registered
+   them at startup per ROSTER_CONFIG). Each carries its role and
+   configured model, e.g.:
    ```
-   councillors: [
-     {name: "adv-claude", role: "adversarial", model: "anthropic/claude-sonnet-4"},
-     {name: "exp-gpt",    role: "expert",      model: "openai/gpt-5.5"},
-     {name: "meth-gemini", role: "methodologist", model: "google/gemini-2-pro"},
-   ]
+   councillor-adversarial    (role: adversarial,    model: configured by plugin)
+   councillor-expert         (role: expert,         model: configured by plugin)
+   councillor-methodologist  (role: methodologist,  model: configured by plugin)
    ```
 2. If `--members N` is set and N < len(roster), pick the first N from
-   roster (preserving role diversity). If N > len(roster) and roster is
-   the default, supplement with extra councillors of the same model
-   pool (warning: same-family councillors lose independence).
-3. If `--role <r>` is set, override ALL councillor roles to `r`.
+   roster (preserving role diversity). If N > len(roster), invoke some
+   councillors more than once only when explicitly asked — repeated
+   same-model votes lose independence; say so.
+3. If `--role <r>` is set, keep the registered agents but put the
+   role-override framing into each task message (see Inputs).
    This is the kill-argument shape: `--role adversarial --members 1`.
-4. Probe model availability (cheap auth check, e.g. 1-token completion).
-   Unreachable model → drop that councillor, log warning, do not
-   silently swap.
-5. If after probing the panel has 0 councillors → STOP.
-   "All configured councillors are unreachable. Council aborted."
+4. If no `councillor-*` subagents are registered (plugin not loaded or
+   host rejected them) → STOP. "No councillor subagents registered.
+   Check that the amore plugin is active (`amore doctor`) and restart
+   the host." Do not improvise councillors in your own context.
 
-### Step 2 — Pick spawn transport (protocol-not-transport)
+### Step 2 — Spawn transport (registered subagents via task tool)
 
-This skill does not hard-code an agent-spawn API. It picks the best
-available transport in this order:
+The transport is the host's native subagent invocation (OpenCode task
+tool): one task per councillor against its registered `councillor-*`
+subagent. Each invocation is a fresh, isolated context — that is what
+makes the assessments independent.
 
-1. **OpenCode parallel subagents** — when running as an OpenCode
-   plugin and the host exposes a parallel-agent invocation API. Each
-   councillor is an ephemeral subagent.
-2. **Claude Code Task tool** — when running in Claude Code. Spawn each
-   councillor as a `Task` with `subagent_type: "general-purpose"` and
-   `model` overridden per councillor. Tasks fan out concurrently.
-3. **External CLI** — when neither host exposes parallel subagents but
-   `codex` / `opencode` CLIs are installed. Spawn each councillor as a
-   detached process; collect stdout.
-4. **Sequential same-thread fallback** — only if nothing above
-   available. Process councillors one by one, swapping model between
-   turns. **Emit explicit warning in the report**: "council ran
-   sequentially — context contamination possible; verdict reliability
-   degraded." This is degraded mode, not normal operation.
+- Issue all councillor tasks in one batch; hosts that support it run
+  them concurrently.
+- If the host executes them sequentially, that is fine: independence
+  comes from fresh per-task contexts, not simultaneity. Note
+  `transport: task-tool-sequential` in the report.
+- If the task tool is unavailable, STOP: "council-session requires the
+  host task tool and registered `councillor-*` subagents. Run inside
+  OpenCode with the amore plugin enabled." Do not fall back to external
+  CLIs and do not answer as multiple councillors in your own context.
 
-Pick the highest-available transport. Record the chosen transport in
-the report for later auditability.
+Record the chosen transport in the report for auditability.
 
-### Step 3 — Build per-councillor prompt
+### Step 3 — Build per-councillor task message
 
-For each councillor, compose the prompt using the existing
-TypeScript builder `buildCouncillorPrompt({role, question, artifactPaths})`
-exported from `src/agents/council.ts`. The builder returns a full
-markdown system prompt with:
+Registered councillors already carry role framing + required output
+format in their system prompt. The task message you send each one is
+only:
 
-- Role framing (adversarial / supportive / expert / methodologist per
-  `COUNCILLOR_ROLE_FRAMINGS`).
-- The question verbatim.
-- Artifact paths list (councillor reads each in full).
-- Required output sections: `## Assessment`, `## Evidence`, `## Dissent
-  points`, `## Confidence`.
+- The question VERBATIM.
+- The artifact paths list (one per line) the councillor must read.
+- The `--role` override framing, if any.
 
 Do NOT pre-filter, pre-analyze, or paraphrase the question. Pass it
 through verbatim. Pre-filtering biases the panel toward your
 assumptions (council.ts `<Anti-patterns>`).
 
-### Step 4 — Spawn in parallel and collect
+### Step 4 — Invoke and collect
 
-Spawn all councillors concurrently. For each:
+Invoke all councillor tasks (one batch). For each:
 
 - Apply `TIMEOUT_PER_COUNCILLOR`. On timeout: record councillor status
   `timeout`, capture partial output if any, move on.
@@ -222,8 +220,8 @@ data summary.
 ## Council Session
 question: <verbatim question>
 goal: <advice | decision | review | plan>
-roster: <name or "default">
-transport: <opencode-parallel | claude-code-task | external-cli | sequential-fallback>
+roster: <registered councillor-* names, or "default">
+transport: <task-tool-parallel | task-tool-sequential>
 artifacts:
   - <path>
   - <path>
@@ -284,7 +282,8 @@ council entry but mark `Affected: none (external artifacts: <count>)`.
 ### Step 9 — Regenerate lab/index.md if needed
 
 Only if `Affected:` contains lab nodes whose status changed (rare —
-council is advisory). Default: skip indexer call.
+council is advisory), run `amore doctor --repair`. Default: skip. Do not
+hand-edit `lab/index.md`; it is generated.
 
 ## Examples
 
@@ -294,8 +293,8 @@ Input: `Is claim:lr-warmup-helps-grpo solid? --artifact lab/drafts/claim-lr-warm
 
 Process:
 - Step 0-1: question OK, both artifacts exist, default roster (3 cncl).
-- Step 2: Claude Code Task transport available.
-- Step 3-4: 3 parallel Tasks; all return in < 60s.
+- Step 2: registered `councillor-*` subagents invoked via the task tool.
+- Step 3-4: 3 councillor tasks in one batch; all return in < 60s.
 - Step 5: 1 FAIL-vote (adversarial: "n=3 is too few seeds for the claimed effect size"), 2 WARN-votes (expert + methodologist agree on seed-count concern, more measured).
 - Step 6: verdict = `WARN` (no unresolved critical, but consistent major concern). Consensus = `unanimous` on the seed-count issue.
 - Step 7: report with all 3 councillor responses verbatim.
@@ -334,20 +333,22 @@ Process:
 - Stop spawning. Mark 4th and 5th as `skipped-budget`.
 - Step 6: verdict from 3 completed councillors with note about reduced panel.
 
-### Example 5 — sequential-fallback (degraded mode)
+### Example 5 — no task tool available
 
-Input: same as Example 1, but running in a host with no parallel-agent API.
+Input: same as Example 1, but running outside the plugin host with no
+task tool.
 
 Process:
-- Step 2: transport = `sequential-fallback`.
-- Step 4: councillors processed one by one. The skill explicitly resets context between each by re-injecting the full system prompt — but cannot guarantee model state isolation.
-- Report includes prominent warning at the top of `## Council Session`:
+- Step 2: STOP. The skill returns:
 
 ```
-⚠️ sequential-fallback transport used. Councillors did not run in
-parallel isolated contexts. Context contamination possible; treat
-verdict with reduced confidence.
+council-session requires the host task tool and registered
+`councillor-*` subagents. Run inside OpenCode with the amore plugin
+enabled.
 ```
+
+Note: `task-tool-sequential` is NOT degraded mode — each task still
+runs in a fresh isolated context; only simultaneity is lost.
 
 ### Example 6 — agent caller (not user)
 
@@ -373,6 +374,8 @@ Process:
   per-councillor votes deterministically.
 - Never silently switch a councillor's model on probe failure. Drop
   with a warning instead.
+- Never improvise councillors in your own context. Without registered
+  `councillor-*` subagents and the host task tool, stop.
 - Never re-run a "Round 2" by continuing the same councillor session.
   Round 2 is a fresh `council-session` call with new artifact set.
 - Never run more than one debate round per session. Use a follow-up
