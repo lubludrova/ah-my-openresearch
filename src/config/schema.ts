@@ -3,11 +3,7 @@
 // Run scripts/generate-schema.ts to produce ah-my-openresearch.schema.json for IDE autocomplete.
 
 import { z } from 'zod';
-import {
-  CONFIG_SCHEMA_VERSION,
-  DEFAULT_LAB_DIR,
-  DEFAULT_PERSONA_TEMPERATURE,
-} from './constants';
+import { CONFIG_SCHEMA_VERSION, DEFAULT_LAB_DIR } from './constants';
 
 // ────────────────────────────────────────────────────────────────────
 // Tier
@@ -23,7 +19,9 @@ export type Tier = z.infer<typeof TierSchema>;
 // ────────────────────────────────────────────────────────────────────
 
 export const PersonaConfigSchema = z.strictObject({
-  enabled: z.boolean().default(true),
+  // false → the persona is still registered but carries OpenCode's
+  // `disable: true` flag. Omit → enabled.
+  enabled: z.boolean().optional(),
 
   // Provider/model-id, e.g. 'anthropic/claude-haiku-4-5'.
   // Omit → use persona's code default.
@@ -32,19 +30,13 @@ export const PersonaConfigSchema = z.strictObject({
   // Tier override. Omit → use persona's code default tier.
   tier: TierSchema.optional(),
 
-  // Allowlist of MCPs this persona may call (subset of MCP_REGISTRY keys).
-  // Omit → use persona's code default allowlist.
-  mcps: z.array(z.string()).optional(),
-
   // Allowlist of skills this persona may invoke (subset of src/skills/<name>).
   // Omit → use persona's code default allowlist.
   skills: z.array(z.string()).optional(),
 
-  // Sampling temperature. Default 0.1 (deterministic-ish).
-  temperature: z.number().min(0).max(2).default(DEFAULT_PERSONA_TEMPERATURE),
-
-  // Output token cap. Optional.
-  max_tokens: z.number().positive().optional(),
+  // Sampling temperature. Omit → use persona's code default (most personas
+  // 0.1; prospector 0.5; writer 0.2). An explicit value always wins.
+  temperature: z.number().min(0).max(2).optional(),
 
   // Full prompt replacement.
   custom_prompt: z.string().optional(),
@@ -68,8 +60,6 @@ export type Councillor = z.infer<typeof CouncillorSchema>;
 export const CouncilConfigSchema = PersonaConfigSchema.extend({
   // Council members. Synthesizer model is the parent `model` field.
   councillors: z.array(CouncillorSchema).optional(),
-  // Total token budget per Council session.
-  budget_max_tokens: z.number().positive().optional(),
 });
 export type CouncilConfig = z.infer<typeof CouncilConfigSchema>;
 
@@ -133,12 +123,5 @@ export const AmoreConfigSchema = z.strictObject({
 
   // Per-MCP user config. Keyed by MCP name from MCP_REGISTRY.
   mcps: McpsConfigSchema.optional(),
-
-  // Active domain pack (e.g. 'rl'). Undefined = generic mode.
-  domain: z.string().optional(),
-
-  // Optional directory for user/domain pack overrides. Core built-in packs are
-  // resolved by the runtime loader when D26 is implemented.
-  domains_dir: z.string().optional(),
 });
 export type AmoreConfig = z.infer<typeof AmoreConfigSchema>;

@@ -1,10 +1,10 @@
 // End-to-end smoke for the amore plugin entry. Calls the plugin function
 // with a fake input, runs the returned `config` hook against a synthetic
-// opencodeConfig, then asserts the resulting agent / MCP shape.
+// opencodeConfig, then asserts the resulting agent / skill shape.
 
 import { describe, expect, test } from 'bun:test';
 import { existsSync } from 'node:fs';
-import { mkdtemp } from 'node:fs/promises';
+import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import amorePlugin from './index';
@@ -23,8 +23,11 @@ interface PluginHooks {
 
 async function runPluginConfigHook(
   initial: FakeOpencodeConfig = {},
+  existingProjectRoot?: string,
 ): Promise<FakeOpencodeConfig> {
-  const projectRoot = await mkdtemp(join(tmpdir(), 'amore-plugin-probe-'));
+  const projectRoot =
+    existingProjectRoot ??
+    (await mkdtemp(join(tmpdir(), 'amore-plugin-probe-')));
   const $: unknown = () => Promise.resolve('');
   // The Plugin type comes from @opencode-ai/plugin; we cast through unknown
   // to avoid pulling SDK type machinery into the test.
@@ -74,14 +77,12 @@ describe('amore plugin — config hook', () => {
     expect(agent.plan).toEqual({ temperature: 0.7, disable: true });
   });
 
-  test('registers obsidian MCP', async () => {
+  test('does not register MCPs by default', async () => {
     const cfg = await runPluginConfigHook();
-    expect(cfg.mcp).toBeDefined();
-    const mcpNames = Object.keys(cfg.mcp ?? {}).sort();
-    expect(mcpNames).toContain('obsidian');
+    expect(cfg.mcp).toBeUndefined();
   });
 
-  test('user-supplied MCP entry wins over plugin default', async () => {
+  test('preserves user-supplied MCP entries verbatim', async () => {
     const cfg = await runPluginConfigHook({
       mcp: { obsidian: { type: 'remote', url: 'http://custom' } },
     });
@@ -106,6 +107,72 @@ describe('amore plugin — config hook', () => {
     expect(agent.librarian.mode).toBe('all');
     expect(agent.council.mode).toBe('all');
     expect(agent.writer.mode).toBe('all');
+  });
+
+  test('registers hidden councillor subagents for council-session', async () => {
+    const cfg = await runPluginConfigHook();
+    const agent = (cfg.agent ?? {}) as Record<
+      string,
+      { mode?: string; hidden?: boolean; model?: string }
+    >;
+    for (const name of [
+      'councillor-adversarial',
+      'councillor-expert',
+      'councillor-methodologist',
+    ]) {
+      expect(agent[name]).toBeDefined();
+      expect(agent[name].mode).toBe('subagent');
+      expect(agent[name].hidden).toBe(true);
+    }
+  });
+
+  test('configured councillors replace the default panel', async () => {
+    const projectRoot = await mkdtemp(join(tmpdir(), 'amore-plugin-probe-'));
+    await mkdir(join(projectRoot, 'lab'), { recursive: true });
+    await writeFile(
+      join(projectRoot, 'lab', 'config.json'),
+      JSON.stringify({
+        schema_version: 'v1',
+        personas: {
+          council: {
+            councillors: [{ model: 'provider/custom', role: 'adversarial' }],
+          },
+        },
+      }),
+      'utf8',
+    );
+
+    const cfg = await runPluginConfigHook({}, projectRoot);
+
+    const agent = (cfg.agent ?? {}) as Record<string, { model?: string }>;
+    expect(agent['councillor-adversarial'].model).toBe('provider/custom');
+    expect(agent['councillor-expert']).toBeUndefined();
+  });
+
+  test('applies personas overrides from lab/config.json', async () => {
+    const projectRoot = await mkdtemp(join(tmpdir(), 'amore-plugin-probe-'));
+    await mkdir(join(projectRoot, 'lab'), { recursive: true });
+    await writeFile(
+      join(projectRoot, 'lab', 'config.json'),
+      JSON.stringify({
+        schema_version: 'v1',
+        personas: {
+          librarian: { model: 'anthropic/claude-haiku-4-5' },
+          council: { enabled: false },
+        },
+      }),
+      'utf8',
+    );
+
+    const cfg = await runPluginConfigHook({}, projectRoot);
+
+    const agent = (cfg.agent ?? {}) as Record<
+      string,
+      { model?: string; disable?: boolean }
+    >;
+    expect(agent.librarian.model).toBe('anthropic/claude-haiku-4-5');
+    expect(agent.council.disable).toBe(true);
+    expect(agent.coder.disable).toBeUndefined();
   });
 
   test('registers bundled skill path without replacing user paths', async () => {

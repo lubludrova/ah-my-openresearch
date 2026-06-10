@@ -21,7 +21,6 @@
           "type": "object",
           "properties": {
             "enabled": {
-              "default": true,
               "type": "boolean"
             },
             "model": {
@@ -31,12 +30,6 @@
               "type": "string",
               "enum": ["cheap", "midtier", "frontier", "mixed"]
             },
-            "mcps": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              }
-            },
             "skills": {
               "type": "array",
               "items": {
@@ -44,14 +37,9 @@
               }
             },
             "temperature": {
-              "default": 0.1,
               "type": "number",
               "minimum": 0,
               "maximum": 2
-            },
-            "max_tokens": {
-              "type": "number",
-              "exclusiveMinimum": 0
             },
             "custom_prompt": {
               "type": "string"
@@ -66,7 +54,6 @@
           "type": "object",
           "properties": {
             "enabled": {
-              "default": true,
               "type": "boolean"
             },
             "model": {
@@ -76,12 +63,6 @@
               "type": "string",
               "enum": ["cheap", "midtier", "frontier", "mixed"]
             },
-            "mcps": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              }
-            },
             "skills": {
               "type": "array",
               "items": {
@@ -89,14 +70,9 @@
               }
             },
             "temperature": {
-              "default": 0.1,
               "type": "number",
               "minimum": 0,
               "maximum": 2
-            },
-            "max_tokens": {
-              "type": "number",
-              "exclusiveMinimum": 0
             },
             "custom_prompt": {
               "type": "string"
@@ -111,7 +87,6 @@
           "type": "object",
           "properties": {
             "enabled": {
-              "default": true,
               "type": "boolean"
             },
             "model": {
@@ -121,12 +96,6 @@
               "type": "string",
               "enum": ["cheap", "midtier", "frontier", "mixed"]
             },
-            "mcps": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              }
-            },
             "skills": {
               "type": "array",
               "items": {
@@ -134,14 +103,9 @@
               }
             },
             "temperature": {
-              "default": 0.1,
               "type": "number",
               "minimum": 0,
               "maximum": 2
-            },
-            "max_tokens": {
-              "type": "number",
-              "exclusiveMinimum": 0
             },
             "custom_prompt": {
               "type": "string"
@@ -156,7 +120,6 @@
           "type": "object",
           "properties": {
             "enabled": {
-              "default": true,
               "type": "boolean"
             },
             "model": {
@@ -166,12 +129,6 @@
               "type": "string",
               "enum": ["cheap", "midtier", "frontier", "mixed"]
             },
-            "mcps": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              }
-            },
             "skills": {
               "type": "array",
               "items": {
@@ -179,14 +136,9 @@
               }
             },
             "temperature": {
-              "default": 0.1,
               "type": "number",
               "minimum": 0,
               "maximum": 2
-            },
-            "max_tokens": {
-              "type": "number",
-              "exclusiveMinimum": 0
             },
             "custom_prompt": {
               "type": "string"
@@ -201,7 +153,6 @@
           "type": "object",
           "properties": {
             "enabled": {
-              "default": true,
               "type": "boolean"
             },
             "model": {
@@ -211,12 +162,6 @@
               "type": "string",
               "enum": ["cheap", "midtier", "frontier", "mixed"]
             },
-            "mcps": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              }
-            },
             "skills": {
               "type": "array",
               "items": {
@@ -224,14 +169,9 @@
               }
             },
             "temperature": {
-              "default": 0.1,
               "type": "number",
               "minimum": 0,
               "maximum": 2
-            },
-            "max_tokens": {
-              "type": "number",
-              "exclusiveMinimum": 0
             },
             "custom_prompt": {
               "type": "string"
@@ -254,10 +194,6 @@
                 "required": ["model"],
                 "additionalProperties": false
               }
-            },
-            "budget_max_tokens": {
-              "type": "number",
-              "exclusiveMinimum": 0
             }
           },
           "additionalProperties": false
@@ -266,7 +202,6 @@
           "type": "object",
           "properties": {
             "enabled": {
-              "default": true,
               "type": "boolean"
             },
             "model": {
@@ -276,12 +211,6 @@
               "type": "string",
               "enum": ["cheap", "midtier", "frontier", "mixed"]
             },
-            "mcps": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              }
-            },
             "skills": {
               "type": "array",
               "items": {
@@ -289,14 +218,9 @@
               }
             },
             "temperature": {
-              "default": 0.1,
               "type": "number",
               "minimum": 0,
               "maximum": 2
-            },
-            "max_tokens": {
-              "type": "number",
-              "exclusiveMinimum": 0
             },
             "custom_prompt": {
               "type": "string"
@@ -336,12 +260,6 @@
         }
       },
       "additionalProperties": false
-    },
-    "domain": {
-      "type": "string"
-    },
-    "domains_dir": {
-      "type": "string"
     }
   },
   "additionalProperties": false,

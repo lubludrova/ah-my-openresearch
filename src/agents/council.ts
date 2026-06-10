@@ -17,10 +17,13 @@
 // auto-review-loop-minimax), claude-octopus council pattern (octo:council),
 // and the Google co-scientist generate→debate→evolve loop.
 //
-// This file also exports COUNCILLOR_ROLE_FRAMINGS and buildCouncillorPrompt:
-// the per-councillor system-prompt template that a future `council-session`
-// skill/tool will use to spawn ephemeral councillor runs. We design the full
-// shape now so the persona prompt and the eventual tool agree on contract.
+// This file also exports the councillor machinery `council-session` runs on:
+//   - createCouncillorAgents: hidden per-member subagents (own model each)
+//     that the plugin registers at startup — the task-tool fan-out targets;
+//   - COUNCILLOR_ROLE_FRAMINGS + buildCouncillorSystemPrompt: their static
+//     system prompts;
+//   - buildCouncillorPrompt: pure prompt builder kept for tests and any future
+//     explicit transport, not for MVP council-session fallback.
 
 import type { AgentDefinition } from './types';
 
@@ -312,6 +315,120 @@ export const COUNCILLOR_ROLE_FRAMINGS: Record<CouncillorRole, string> = {
     'critique HOW it was done. Identify confounds, baselines, and ' +
     'missing controls.',
 };
+
+function isCouncillorRole(value: unknown): value is CouncillorRole {
+  return typeof value === 'string' && value in COUNCILLOR_ROLE_FRAMINGS;
+}
+
+/**
+ * One registered councillor: a hidden OpenCode subagent with its own model.
+ * council-session fans the question out by invoking these via the host's
+ * task tool — that is the concrete spawn transport. Parallel tool calls run
+ * concurrently where the host supports it; sequential invocation is an
+ * equally valid fallback because independence comes from fresh per-task
+ * contexts, not simultaneity.
+ */
+export interface CouncillorSpec {
+  role: CouncillorRole;
+  model: string;
+}
+
+// Default panel: three model families so blind spots don't correlate.
+// Model ids verified against models.dev on 2026-06-10.
+export const DEFAULT_COUNCILLORS: readonly CouncillorSpec[] = [
+  { role: 'adversarial', model: 'anthropic/claude-sonnet-4-6' },
+  { role: 'expert', model: 'openai/gpt-5.5' },
+  { role: 'methodologist', model: 'google/gemini-3.1-pro-preview' },
+];
+
+const COUNCILLOR_PERMISSION = {
+  read: 'allow',
+  glob: 'allow',
+  grep: 'allow',
+  webfetch: 'allow',
+  edit: 'deny',
+  write: 'deny',
+  bash: 'deny',
+  task: 'deny',
+  question: 'deny',
+} as const;
+
+/**
+ * Static system prompt for a registered councillor subagent. The question
+ * and artifact paths arrive in the task message at invocation time —
+ * unlike buildCouncillorPrompt, nothing session-specific is baked in here.
+ */
+export function buildCouncillorSystemPrompt(role: CouncillorRole): string {
+  return `You are an independent councillor in amore's multi-model council.
+
+Each council session sends you ONE question, usually with artifact
+paths. Other councillors may be assessing the same question in
+parallel — you never see their responses. Do not try to anticipate or
+align with them. Provide your honest assessment.
+
+Your role framing:
+${COUNCILLOR_ROLE_FRAMINGS[role]}
+
+Behavior:
+- Read every artifact path given in the task in full before answering.
+  Your read access is what makes the council valuable.
+- Provide evidence. Quote specific lines or sections.
+- State your confidence (low / medium / high) at the end.
+
+Required output (markdown):
+
+## Assessment
+<Your independent take. For adversarial role: ~200 words single
+strongest attack. For other roles: 3-5 paragraphs of structured
+analysis.>
+
+## Evidence
+<Specific quotes and references from the artifacts.>
+
+## Dissent points
+<Where you most disagree with the proposal. If you fully agree, write
+"none".>
+
+## Confidence
+low | medium | high
+`;
+}
+
+/**
+ * Builds the hidden councillor subagents to register with the host.
+ * Config entries (personas.council.councillors) win over the default
+ * panel; unknown roles fall back to 'expert'. Names are
+ * `councillor-<role>`, suffixed on collision.
+ */
+export function createCouncillorAgents(
+  configCouncillors?: readonly { model: string; role?: string }[],
+): Record<string, AgentDefinition> {
+  const specs: CouncillorSpec[] =
+    configCouncillors && configCouncillors.length > 0
+      ? configCouncillors.map((entry) => ({
+          role: isCouncillorRole(entry.role) ? entry.role : 'expert',
+          model: entry.model,
+        }))
+      : [...DEFAULT_COUNCILLORS];
+
+  const agents: Record<string, AgentDefinition> = {};
+  for (const spec of specs) {
+    let name = `councillor-${spec.role}`;
+    for (let suffix = 2; agents[name]; suffix += 1) {
+      name = `councillor-${spec.role}-${suffix}`;
+    }
+    agents[name] = {
+      description: `Council member (${spec.role}, ${spec.model}). Independent assessment for council-session — not for direct use.`,
+      mode: 'subagent',
+      hidden: true,
+      model: spec.model,
+      temperature: 0.1,
+      permission: COUNCILLOR_PERMISSION,
+      prompt: buildCouncillorSystemPrompt(spec.role),
+    };
+  }
+  return agents;
+}
 
 export interface BuildCouncillorPromptArgs {
   role: CouncillorRole;

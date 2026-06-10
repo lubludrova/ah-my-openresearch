@@ -12,12 +12,36 @@
 
 export type AgentMode = 'primary' | 'subagent' | 'all';
 
+export type AgentPermissionAction = 'allow' | 'ask' | 'deny';
+
+export type AgentPermission = Record<
+  string,
+  AgentPermissionAction | Record<string, AgentPermissionAction>
+>;
+
 export interface AgentDefinition {
   description: string;
   mode: AgentMode;
   model: string;
   temperature: number;
   prompt: string;
+  /**
+   * OpenCode-native off switch. Set when user config has
+   * `personas.<name>.enabled: false` — the persona stays registered (so the
+   * entry is visible/overridable) but the host does not offer it.
+   */
+  disable?: boolean;
+  /**
+   * OpenCode-native subagent flag: hide from the @-mention autocomplete.
+   * Used for councillor subagents that only council-session should invoke.
+   */
+  hidden?: boolean;
+  /**
+   * OpenCode-native per-agent permission override. Used sparingly; most
+   * personas inherit host defaults, but internal reviewer subagents should
+   * be read-only.
+   */
+  permission?: AgentPermission;
   /**
    * Allowlist of skill names this persona may invoke. `["*"]` means any
    * skill registered with OpenCode (via `Config.skills.paths`). User entries

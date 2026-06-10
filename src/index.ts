@@ -1,7 +1,7 @@
 // ah-my-openresearch (amore) — OpenCode plugin entry.
 //
 // Wiring:
-//   - Phase 4a: `config` hook registers six personas + builtin MCPs.
+//   - Phase 4a: `config` hook registers six personas + bundled skills.
 //   - Phase 6:  `tool.execute.before` enforces the lab/ write boundary.
 //
 // Plugin shape: `@opencode-ai/plugin@^1.15` exposes only `Hooks` from the
@@ -13,10 +13,9 @@ import { existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Plugin } from '@opencode-ai/plugin';
-import { createAllAgents } from './agents';
+import { createAllAgents, createCouncillorAgents } from './agents';
 import { loadAmoreConfig } from './config';
 import { createPreWriteDraftsOnlyHook } from './hooks';
-import { createBuiltinMcps } from './mcp';
 
 /**
  * Absolute path to the package's bundled skills directory. Resolved via
@@ -68,11 +67,14 @@ const amorePlugin: Plugin = async (input) => {
         };
       }
 
-      // Personas: plugin defaults first, user opencode.json overrides win.
-      // User-supplied wiki path from amore config wins over the hard-coded
+      // Personas: plugin defaults first, then amore user config overrides
+      // (personas.<name>.model / temperature / skills / prompts / enabled),
+      // then user opencode.json entries win at merge below. User-supplied
+      // wiki path from amore config wins over the hard-coded
       // DEFAULT_LITERATURE_WIKI fallback.
       const agents = createAllAgents({
         wikiPath: userConfig?.literature_wiki_path,
+        personas: userConfig?.personas,
       });
       for (const [name, agent] of Object.entries(agents)) {
         const existing = opencodeConfig.agent[name];
@@ -81,13 +83,17 @@ const amorePlugin: Plugin = async (input) => {
           : { ...agent };
       }
 
-      // MCPs: keep any user-defined entry verbatim, add ours only if missing.
-      const mcps = createBuiltinMcps();
-      opencodeConfig.mcp ??= {};
-      for (const [name, mcp] of Object.entries(mcps)) {
-        if (!opencodeConfig.mcp[name]) {
-          opencodeConfig.mcp[name] = mcp;
-        }
+      // Councillor subagents: hidden, one per configured council member,
+      // each on its own model. council-session fans out by invoking these
+      // through the host's task tool.
+      const councillors = createCouncillorAgents(
+        userConfig?.personas?.council?.councillors,
+      );
+      for (const [name, agent] of Object.entries(councillors)) {
+        const existing = opencodeConfig.agent[name];
+        opencodeConfig.agent[name] = existing
+          ? { ...agent, ...existing }
+          : { ...agent };
       }
 
       // Skills: tell OpenCode to scan the package's bundled skills/ dir.

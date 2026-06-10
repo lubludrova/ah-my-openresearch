@@ -10,7 +10,7 @@
 import type { AgentDefinition } from './types';
 
 // Placeholder replaced at agent-creation time with the user's actual wiki
-// path (default: ~/RL-Wiki, override via amore config).
+// path (default: a generic fallback, override via amore config).
 const WIKI_PATH_PLACEHOLDER = '<WIKI_PATH>';
 
 const LIBRARIAN_PROMPT_TEMPLATE = `<Role>

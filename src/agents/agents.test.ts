@@ -5,9 +5,10 @@ import {
   ALL_PERSONAS,
   DEFAULT_LITERATURE_WIKI,
   DEFAULT_PERSONA_MODELS,
+  MODEL_PRESETS,
 } from '../config/constants';
 import { COUNCILLOR_ROLE_FRAMINGS, buildCouncillorPrompt } from './council';
-import { createAllAgents } from './index';
+import { createAllAgents, createCouncillorAgents } from './index';
 
 describe('createAllAgents', () => {
   test('returns exactly the six designed personas (D2/D6)', () => {
@@ -90,6 +91,81 @@ describe('createAllAgents', () => {
   });
 });
 
+describe('MODEL_PRESETS', () => {
+  test('every preset covers all six personas with provider/model ids', () => {
+    for (const preset of Object.values(MODEL_PRESETS)) {
+      expect(Object.keys(preset).sort()).toEqual([...ALL_PERSONAS].sort());
+      for (const model of Object.values(preset)) {
+        expect(model).toMatch(/^[a-z0-9-]+\/[A-Za-z0-9._-]+$/);
+      }
+    }
+  });
+
+  test('default models are the openai preset', () => {
+    expect(DEFAULT_PERSONA_MODELS).toEqual(MODEL_PRESETS.openai);
+  });
+});
+
+describe('personas user-config overrides (lab/config.json wiring)', () => {
+  test('model and skills overrides apply; untouched personas keep defaults', () => {
+    const agents = createAllAgents({
+      personas: {
+        librarian: {
+          model: 'anthropic/claude-haiku-4-5',
+          skills: ['wiki-lint'],
+        },
+      },
+    });
+    expect(agents.librarian.model).toBe('anthropic/claude-haiku-4-5');
+    expect(agents.librarian.skills).toEqual(['wiki-lint']);
+    expect(agents.coder.model).toBe(DEFAULT_PERSONA_MODELS.coder);
+  });
+
+  test('partial override does not clobber persona temperature defaults', () => {
+    const agents = createAllAgents({
+      personas: { prospector: { model: 'provider/some-model' } },
+    });
+    expect(agents.prospector.model).toBe('provider/some-model');
+    expect(agents.prospector.temperature).toBe(0.5);
+  });
+
+  test('explicit temperature override wins', () => {
+    const agents = createAllAgents({
+      personas: { prospector: { temperature: 0.9 } },
+    });
+    expect(agents.prospector.temperature).toBe(0.9);
+  });
+
+  test('custom_append_prompt appends; custom_prompt replaces', () => {
+    const appended = createAllAgents({
+      personas: { coder: { custom_append_prompt: 'EXTRA PROJECT RULES' } },
+    });
+    expect(appended.coder.prompt).toContain('<Role>');
+    expect(appended.coder.prompt).toEndWith('EXTRA PROJECT RULES');
+
+    const replaced = createAllAgents({
+      personas: { coder: { custom_prompt: 'ONLY THIS PROMPT' } },
+    });
+    expect(replaced.coder.prompt).toBe('ONLY THIS PROMPT');
+  });
+
+  test('enabled:false sets the OpenCode-native disable flag', () => {
+    const agents = createAllAgents({
+      personas: { council: { enabled: false } },
+    });
+    expect(agents.council.disable).toBe(true);
+    expect(agents.librarian.disable).toBeUndefined();
+  });
+
+  test('personas config wins over the programmatic models option', () => {
+    const agents = createAllAgents({
+      models: { librarian: 'programmatic/override' },
+      personas: { librarian: { model: 'config/override' } },
+    });
+    expect(agents.librarian.model).toBe('config/override');
+  });
+});
+
 describe('orchestrator default settings', () => {
   test('uses frontier model openai/gpt-5.5 by default', () => {
     const agents = createAllAgents();
@@ -140,8 +216,8 @@ describe('orchestrator prompt structure', () => {
 
   test('describes librarian access generically (no user-specific paths)', () => {
     const prompt = createAllAgents().orchestrator.prompt;
-    expect(prompt).not.toContain('~/RL-Wiki');
-    expect(prompt).not.toContain('RL-Wiki');
+    expect(prompt).toContain('outside literature wiki');
+    expect(prompt).not.toContain('~/research-vault');
   });
 });
 
@@ -191,7 +267,7 @@ describe('librarian prompt structure', () => {
 
   test('does not contain wiki-specific hardcoded content (raw/, English-only)', () => {
     const prompt = createAllAgents().librarian.prompt;
-    // These are RL-Wiki specifics that belong in the user's wiki contract,
+    // These are wiki-specific rules that belong in the user's wiki contract,
     // not in the universal persona prompt.
     expect(prompt).not.toMatch(/raw\/ is read-only/i);
     expect(prompt).not.toMatch(/English-only content rule/i);
@@ -489,6 +565,65 @@ describe('COUNCILLOR_ROLE_FRAMINGS', () => {
       expect(typeof v).toBe('string');
       expect((v as string).length).toBeGreaterThan(20);
     }
+  });
+});
+
+describe('createCouncillorAgents', () => {
+  test('default panel: three hidden subagents across three model families', () => {
+    const councillors = createCouncillorAgents();
+    expect(Object.keys(councillors).sort()).toEqual([
+      'councillor-adversarial',
+      'councillor-expert',
+      'councillor-methodologist',
+    ]);
+    for (const agent of Object.values(councillors)) {
+      expect(agent.mode).toBe('subagent');
+      expect(agent.hidden).toBe(true);
+      expect(agent.prompt).toContain('## Assessment');
+      expect(agent.prompt).toContain('## Confidence');
+      expect(agent.temperature).toBe(0.1);
+      expect(agent.permission?.read).toBe('allow');
+      expect(agent.permission?.grep).toBe('allow');
+      expect(agent.permission?.edit).toBe('deny');
+      expect(agent.permission?.write).toBe('deny');
+      expect(agent.permission?.bash).toBe('deny');
+      expect(agent.permission?.task).toBe('deny');
+    }
+    const families = new Set(
+      Object.values(councillors).map((agent) => agent.model.split('/')[0]),
+    );
+    expect(families.size).toBe(3);
+  });
+
+  test('config councillors replace the default panel; unknown role falls back to expert', () => {
+    const councillors = createCouncillorAgents([
+      { model: 'provider/strong', role: 'adversarial' },
+      { model: 'provider/other' },
+    ]);
+    expect(Object.keys(councillors).sort()).toEqual([
+      'councillor-adversarial',
+      'councillor-expert',
+    ]);
+    expect(councillors['councillor-adversarial'].model).toBe('provider/strong');
+    expect(councillors['councillor-expert'].model).toBe('provider/other');
+  });
+
+  test('same-role councillors get numeric name suffixes', () => {
+    const councillors = createCouncillorAgents([
+      { model: 'a/one', role: 'expert' },
+      { model: 'b/two', role: 'expert' },
+    ]);
+    expect(Object.keys(councillors).sort()).toEqual([
+      'councillor-expert',
+      'councillor-expert-2',
+    ]);
+  });
+
+  test('role framing lands in the registered system prompt', () => {
+    const councillors = createCouncillorAgents();
+    expect(councillors['councillor-adversarial'].prompt).toContain(
+      COUNCILLOR_ROLE_FRAMINGS.adversarial,
+    );
   });
 });
 

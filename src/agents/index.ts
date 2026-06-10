@@ -6,6 +6,7 @@ import {
   DEFAULT_LITERATURE_WIKI,
   DEFAULT_PERSONA_MODELS,
 } from '../config/constants';
+import type { PersonaConfig, PersonasConfig } from '../config/schema';
 import { createCoderAgent } from './coder';
 import { createCouncilAgent } from './council';
 import { createLibrarianAgent } from './librarian';
@@ -14,6 +15,7 @@ import { createProspectorAgent } from './prospector';
 import type { AgentDefinition } from './types';
 import { createWriterAgent } from './writer';
 
+export { createCouncillorAgents, DEFAULT_COUNCILLORS } from './council';
 export {
   createCoderAgent,
   createCouncilAgent,
@@ -31,6 +33,13 @@ export interface CreateAllAgentsOptions {
   skills?: Partial<Record<string, string[]>>;
   /** Path to the outside literature wiki (passed to librarian). */
   wikiPath?: string;
+  /**
+   * Persona overrides from amore user config (lab/config.json or the global
+   * ~/.config/opencode/ah-my-openresearch.json). Applied after `models` /
+   * `skills`; user entries in opencode.json still win over everything at
+   * plugin-merge time.
+   */
+  personas?: PersonasConfig;
 }
 
 /**
@@ -75,6 +84,40 @@ function withSkills(
 }
 
 /**
+ * Applies user-config persona overrides on top of a factory-built agent.
+ * Only fields the user explicitly set are touched — in particular,
+ * `temperature` is optional in the schema so persona-specific defaults
+ * (prospector 0.5, writer 0.2) survive partial overrides.
+ */
+function applyPersonaConfig(
+  agent: AgentDefinition,
+  config?: PersonaConfig,
+): AgentDefinition {
+  if (!config) {
+    return agent;
+  }
+  const out: AgentDefinition = { ...agent };
+  if (config.model) {
+    out.model = config.model;
+  }
+  if (config.temperature !== undefined) {
+    out.temperature = config.temperature;
+  }
+  if (config.skills) {
+    out.skills = config.skills;
+  }
+  if (config.custom_prompt) {
+    out.prompt = config.custom_prompt;
+  } else if (config.custom_append_prompt) {
+    out.prompt = `${out.prompt}\n\n${config.custom_append_prompt}`;
+  }
+  if (config.enabled === false) {
+    out.disable = true;
+  }
+  return out;
+}
+
+/**
  * Builds every persona using per-persona model defaults and the configured
  * literature wiki path. Pass `options` to swap any default.
  */
@@ -87,9 +130,14 @@ export function createAllAgents(
   };
   const skillsOverrides = options?.skills ?? {};
   const wikiPath = options?.wikiPath ?? DEFAULT_LITERATURE_WIKI;
+  const personas = options?.personas;
 
-  function build(name: string, base: AgentDefinition): AgentDefinition {
-    return withSkills(base, name, skillsOverrides[name]);
+  function build(
+    name: keyof PersonasConfig,
+    base: AgentDefinition,
+  ): AgentDefinition {
+    const withDefaults = withSkills(base, name, skillsOverrides[name]);
+    return applyPersonaConfig(withDefaults, personas?.[name]);
   }
 
   return {
