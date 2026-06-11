@@ -59,7 +59,7 @@ function seedWikiWithContract(home: string, name: string): void {
 }
 
 describe('bootstrapProjectConfig — basics', () => {
-  test('writes lab/config.json with an explicitly chosen wiki path', async () => {
+  test('writes .opencode/amore.json with an explicitly chosen wiki path', async () => {
     const cwd = await tempProject();
     const home = await tempHome();
     seedWikiWithContract(home, 'research-wiki');
@@ -69,10 +69,10 @@ describe('bootstrapProjectConfig — basics', () => {
       interactive: false,
       literatureWiki: '~/research-wiki',
     });
-    expect(result.labConfig).toBe(join(cwd, 'lab', 'config.json'));
+    expect(result.amoreConfig).toBe(join(cwd, '.opencode', 'amore.json'));
     expect(result.resolvedWikiPath).toBe('~/research-wiki');
     const written = JSON.parse(
-      await Bun.file(expectString(result.labConfig)).text(),
+      await Bun.file(expectString(result.amoreConfig)).text(),
     );
     expect(written.literature_wiki_path).toBe('~/research-wiki');
     expect(result.warnings).toEqual([]);
@@ -124,7 +124,7 @@ describe('bootstrapProjectConfig — basics', () => {
     });
     expect(result.resolvedWikiPath).toBeNull();
     const written = JSON.parse(
-      await Bun.file(expectString(result.labConfig)).text(),
+      await Bun.file(expectString(result.amoreConfig)).text(),
     );
     expect(written.literature_wiki_path).toBeUndefined();
   });
@@ -152,13 +152,19 @@ describe('bootstrapProjectConfig — basics', () => {
     expect(written.skills).toBeUndefined();
   });
 
-  test('does not overwrite existing lab/config.json', async () => {
+  test('migrates existing legacy lab/config.json without overwriting it', async () => {
     const cwd = await tempProject();
     const home = await tempHome('primary-wiki');
     mkdirSync(join(cwd, 'lab'), { recursive: true });
     writeFileSync(
       join(cwd, 'lab', 'config.json'),
-      '{"schema_version":"v1","literature_wiki_path":"/custom/path"}',
+      JSON.stringify({
+        schema_version: 'v1',
+        literature_wiki_path: '/custom/path',
+        personas: {
+          librarian: { model: 'custom/cheap' },
+        },
+      }),
       'utf8',
     );
     const result = await bootstrapProjectConfig({
@@ -167,10 +173,25 @@ describe('bootstrapProjectConfig — basics', () => {
       interactive: false,
     });
     expect(result.labConfig).toBeNull();
+    expect(result.amoreConfig).toBe(join(cwd, '.opencode', 'amore.json'));
     const kept = JSON.parse(
       await Bun.file(join(cwd, 'lab', 'config.json')).text(),
     );
     expect(kept.literature_wiki_path).toBe('/custom/path');
+    const migrated = JSON.parse(
+      await Bun.file(expectString(result.amoreConfig)).text(),
+    );
+    expect(migrated.literature_wiki_path).toBe('/custom/path');
+    expect(Object.keys(migrated.personas).sort()).toEqual([
+      'coder',
+      'council',
+      'librarian',
+      'orchestrator',
+      'prospector',
+      'writer',
+    ]);
+    expect(migrated.personas.orchestrator.model).toBe('openai/gpt-5.5');
+    expect(migrated.personas.librarian.model).toBe('custom/cheap');
   });
 
   test('merges amore entries into existing opencode.json', async () => {
@@ -256,7 +277,7 @@ describe('bootstrapProjectConfig — basics', () => {
       models: 'anthropic',
     });
     const written = JSON.parse(
-      await Bun.file(expectString(result.labConfig)).text(),
+      await Bun.file(expectString(result.amoreConfig)).text(),
     );
     expect(Object.keys(written.personas).sort()).toEqual([
       'coder',
@@ -270,9 +291,10 @@ describe('bootstrapProjectConfig — basics', () => {
       'anthropic/claude-sonnet-4-6',
     );
     expect(written.personas.librarian.model).toBe('anthropic/claude-haiku-4-5');
+    expect(written.orchestration).toEqual({ max_parallel: 5 });
   });
 
-  test('omits the personas block without models in non-interactive mode', async () => {
+  test('writes openai personas by default without models in non-interactive mode', async () => {
     const cwd = await tempProject();
     const home = await tempHome();
     const result = await bootstrapProjectConfig({
@@ -281,9 +303,59 @@ describe('bootstrapProjectConfig — basics', () => {
       interactive: false,
     });
     const written = JSON.parse(
-      await Bun.file(expectString(result.labConfig)).text(),
+      await Bun.file(expectString(result.amoreConfig)).text(),
     );
-    expect(written.personas).toBeUndefined();
+    expect(written.personas.orchestrator.model).toBe('openai/gpt-5.5');
+    expect(written.personas.librarian.model).toBe('openai/gpt-5.4-mini');
+    expect(written.orchestration).toEqual({ max_parallel: 5 });
+  });
+
+  test('detects existing OpenCode model pair and writes persona models', async () => {
+    const cwd = await tempProject();
+    const home = await tempHome();
+    writeFileSync(
+      join(cwd, 'opencode.json'),
+      JSON.stringify({
+        model: 'openrouter/custom-frontier',
+        small_model: 'openrouter/custom-cheap',
+      }),
+      'utf8',
+    );
+    const result = await bootstrapProjectConfig({
+      cwd,
+      homeDir: home,
+      interactive: false,
+    });
+    const written = JSON.parse(
+      await Bun.file(expectString(result.amoreConfig)).text(),
+    );
+    expect(written.personas.orchestrator.model).toBe(
+      'openrouter/custom-frontier',
+    );
+    expect(written.personas.librarian.model).toBe('openrouter/custom-cheap');
+    expect(written.personas.coder.model).toBe('openrouter/custom-cheap');
+  });
+
+  test('detects known OpenCode provider and uses matching preset', async () => {
+    const cwd = await tempProject();
+    const home = await tempHome();
+    writeFileSync(
+      join(cwd, 'opencode.json'),
+      JSON.stringify({ model: 'anthropic/some-default' }),
+      'utf8',
+    );
+    const result = await bootstrapProjectConfig({
+      cwd,
+      homeDir: home,
+      interactive: false,
+    });
+    const written = JSON.parse(
+      await Bun.file(expectString(result.amoreConfig)).text(),
+    );
+    expect(written.personas.orchestrator.model).toBe(
+      'anthropic/claude-sonnet-4-6',
+    );
+    expect(written.personas.librarian.model).toBe('anthropic/claude-haiku-4-5');
   });
 
   test('drops the skills block when only stale amore paths remain', async () => {
@@ -441,8 +513,8 @@ describe('bootstrapProjectConfig — basics', () => {
       interactive: false,
       labDir: 'research/lab',
     });
-    expect(result.labConfig).toBe(join(cwd, 'research', 'lab', 'config.json'));
-    expect(existsSync(expectString(result.labConfig))).toBe(true);
+    expect(result.amoreConfig).toBe(join(cwd, '.opencode', 'amore.json'));
+    expect(existsSync(expectString(result.amoreConfig))).toBe(true);
     const agents = await Bun.file(expectString(result.agentsFile)).text();
     expect(agents).toContain('lab_dir: research/lab');
     expect(agents).toContain('research/lab/drafts/');
@@ -505,7 +577,7 @@ describe('bootstrapProjectConfig — literature wiki resolution', () => {
     });
     expect(result.resolvedWikiPath).toBeNull();
     const written = JSON.parse(
-      await Bun.file(expectString(result.labConfig)).text(),
+      await Bun.file(expectString(result.amoreConfig)).text(),
     );
     expect(written.literature_wiki_path).toBeUndefined();
   });
@@ -532,8 +604,8 @@ describe('bootstrapProjectConfig — literature wiki resolution', () => {
           return '';
         }
         // third prompt: persona model preset menu
-        expect(q).toContain('[s] skip');
-        return 's';
+        expect(q).toContain('[d] detect');
+        return 'd';
       },
     });
     expect(calls).toBe(3);
@@ -580,6 +652,10 @@ describe('bootstrapProjectConfig — literature wiki resolution', () => {
     expect(existsSync(join(cwd, 'llm-wiki', 'RULES.md'))).toBe(true);
     expect(existsSync(join(cwd, 'llm-wiki', 'wiki'))).toBe(true);
     expect(existsSync(join(cwd, 'llm-wiki', 'raw'))).toBe(true);
+    expect(existsSync(join(cwd, 'llm-wiki', 'reports'))).toBe(true);
+    const rules = await Bun.file(join(cwd, 'llm-wiki', 'RULES.md')).text();
+    expect(rules).toContain('All agent-written reports MUST go in `reports/`');
+    expect(rules).toContain('Reports are concise and in English by default');
   });
 
   test('interactive Cyrillic с creates a new starter wiki', async () => {

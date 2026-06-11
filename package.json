@@ -1,7 +1,7 @@
 {
   "name": "ah-my-openresearch",
-  "version": "0.1.4",
-  "description": "OpenCode-first research laboratory with personas, bundled skills, project lab, and outside literature wiki.",
+  "version": "0.1.5",
+  "description": "Research-lab layer for OpenCode: six personas, 17 curated skills, and a typed claim-level lab record with provenance that survives the chat.",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

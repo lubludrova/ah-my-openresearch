@@ -5,8 +5,8 @@
 //
 //   1. resolveLiteratureWiki   — pick existing / create / skip
 //   2. maybeReadObsidianMcp    — auto-wire MCP from the chosen wiki
-//   3. writeBootstrapFiles     — idempotent seeds for lab/config.json and
-//                                opencode.json
+//   3. writeBootstrapFiles     — idempotent seeds for .opencode/amore.json and
+//                                OpenCode config
 //
 // Each step is pure-ish: side effects are file writes and prompts; nothing
 // else logs. install.ts owns presentation.
@@ -27,10 +27,16 @@ import { fileURLToPath } from 'node:url';
 import pkg from '../../package.json' with { type: 'json' };
 import {
   CONFIG_SCHEMA_VERSION,
+  DEFAULT_ORCHESTRATION_MAX_PARALLEL,
+  LEGACY_PROJECT_OPENCODE_CONFIG_PATH,
   MODEL_PRESETS,
   MODEL_PRESET_NAMES,
   type ModelPresetName,
+  PROJECT_OPENCODE_CONFIG_PATH,
 } from '../config/constants';
+import type { PersonaName } from '../config/constants';
+import type { PersonasConfig } from '../config/schema';
+import { getProjectAmoreConfigPath } from '../utils/paths';
 
 // ──────────────────────────────────────────────────────────────────────────
 // Types
@@ -41,7 +47,7 @@ export type WikiChoiceKind = 'use' | 'create' | 'skip';
 export interface WikiResolution {
   /** What happened with the wiki step. */
   kind: WikiChoiceKind;
-  /** Path written into lab/config.json (or null when skipped). */
+  /** Path written into amore config (or null when skipped). */
   resolvedPath: string | null;
   /** True iff the create branch actually wrote a new wiki on disk. */
   created: boolean;
@@ -58,6 +64,8 @@ export interface ObsidianMcpEntry {
 export interface BootstrapWriteResult {
   /** Absolute path of the file we wrote, or null when skipped. */
   labConfig: string | null;
+  /** Absolute path of the amore config we wrote, or null when skipped. */
+  amoreConfig: string | null;
   /** Absolute path of opencode.json when created/updated, or null when kept. */
   opencodeConfig: string | null;
   agentsFile: string | null;
@@ -69,6 +77,15 @@ export interface BootstrapWriteResult {
   opencodeConfigBackup: string | null;
   /** Soft warnings to surface. */
   warnings: string[];
+}
+
+export type ModelSeedKind = 'preset' | 'detected-pair' | 'detected-single';
+
+export interface ModelSeed {
+  kind: ModelSeedKind;
+  source: string;
+  preset: ModelPresetName | null;
+  personas: PersonasConfig;
 }
 
 export interface BootstrapOptions {
@@ -114,6 +131,7 @@ instead of re-discovering it every session.
 <wiki>/
 ├── RULES.md       — this file (the contract librarian reads at session start)
 ├── raw/           — immutable source materials (PDFs, images, downloads)
+├── reports/       — agent-written reports only
 └── wiki/          — all wiki pages (flat directory)
     ├── index.md   — flat catalog of pages with one-line descriptions
     └── log.md     — chronological journal of ingest / edit events
@@ -154,6 +172,35 @@ Pages affected: [[page1]], [[page2]]
 \`\`\`
 
 Actions: \`ingest\`, \`update\`, \`create\`, \`delete\`, \`lint\`.
+
+## Reports
+
+All agent-written reports MUST go in \`reports/\`, never in the wiki root or
+\`wiki/\`. A report is any generated audit, lint, survey, search, review,
+comparison, or status document.
+
+Filename format:
+
+\`YYYY-MM-DD-<topic>-<kind>.md\`
+
+Reports are concise and in English by default unless the user explicitly asks
+for another language. Use this exact body shape:
+
+\`# <Title>\`
+\`Date: <YYYY-MM-DD>\`
+\`Scope: <one line>\`
+
+\`## Summary\`
+- 3-5 short bullets.
+
+\`## Findings\`
+1. Numbered findings, each no more than two lines.
+
+\`## Sources\`
+- Links, paper refs, or wiki pages used.
+
+\`## Next\`
+- 0-3 concrete follow-ups.
 
 ## Read-before-write
 
@@ -221,7 +268,7 @@ function warnExplicitPath(
 ): void {
   if (!existsSync(absolute)) {
     warnings.push(
-      `Literature wiki path "${display}" does not exist yet — writing it into lab/config.json anyway. Create the directory before invoking librarian.`,
+      `Literature wiki path "${display}" does not exist yet — writing it into .opencode/amore.json anyway. Create the directory before invoking librarian.`,
     );
   } else if (!hasContractFile(absolute)) {
     warnings.push(
@@ -266,6 +313,7 @@ export function createStarterWiki(dirAbsolute: string): {
   mkdirSync(dirAbsolute, { recursive: true });
   mkdirSync(join(dirAbsolute, 'wiki'), { recursive: true });
   mkdirSync(join(dirAbsolute, 'raw'), { recursive: true });
+  mkdirSync(join(dirAbsolute, 'reports'), { recursive: true });
   const rulesPath = join(dirAbsolute, 'RULES.md');
   if (!existsSync(rulesPath)) {
     writeFileSync(rulesPath, STARTER_WIKI_RULES_MD, 'utf8');
@@ -273,11 +321,12 @@ export function createStarterWiki(dirAbsolute: string): {
   }
   filesWritten.push('wiki/');
   filesWritten.push('raw/');
+  filesWritten.push('reports/');
   return { filesWritten };
 }
 
 /**
- * Resolves which literature wiki path (if any) will land in lab/config.json.
+ * Resolves which literature wiki path (if any) will land in .opencode/amore.json.
  * In interactive mode, prompts the user with a 3-way choice
  * (use / create / skip). Non-interactive runs honor explicit flags only —
  * install never auto-detects or silently writes a wiki path the user did
@@ -362,40 +411,175 @@ function parseModelPresetChoice(choice: string): ModelPresetName | null {
   return null; // 's' / anything else → skip, keep code defaults.
 }
 
+function providerFromModel(model: string): string | null {
+  const slash = model.indexOf('/');
+  return slash > 0 ? model.slice(0, slash) : null;
+}
+
+function presetFromModel(model: string): ModelPresetName | null {
+  const provider = providerFromModel(model);
+  return provider &&
+    (MODEL_PRESET_NAMES as readonly string[]).includes(provider)
+    ? (provider as ModelPresetName)
+    : null;
+}
+
+function readJsonObject(path: string): Record<string, unknown> | null {
+  if (!existsSync(path)) {
+    return null;
+  }
+  try {
+    const parsed: unknown = JSON.parse(readFileSync(path, 'utf8'));
+    return isJsonObject(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function detectedOpenCodeModels(options: BootstrapOptions): {
+  model: string | null;
+  smallModel: string | null;
+  source: string | null;
+} {
+  const cwd = options.cwd ?? process.cwd();
+  const home = options.homeDir ?? homedir();
+  const candidates = [
+    join(cwd, PROJECT_OPENCODE_CONFIG_PATH),
+    join(cwd, LEGACY_PROJECT_OPENCODE_CONFIG_PATH),
+    join(home, '.config', 'opencode', 'opencode.json'),
+  ];
+
+  for (const path of candidates) {
+    const config = readJsonObject(path);
+    const model = typeof config?.model === 'string' ? config.model : null;
+    const smallModel =
+      typeof config?.small_model === 'string' ? config.small_model : null;
+    if (model || smallModel) {
+      return { model, smallModel, source: path };
+    }
+  }
+
+  return { model: null, smallModel: null, source: null };
+}
+
 /**
- * Resolves which persona model preset (if any) lands in lab/config.json as
- * a `personas` block. Explicit `--models <name>` wins; otherwise interactive
- * installs get a menu; non-interactive installs without the flag skip
- * (personas fall back to the code defaults = openai preset).
+ * Resolves which persona model block lands in .opencode/amore.json. Explicit
+ * `--models <name>` wins; otherwise interactive installs get a menu, then we
+ * detect an existing OpenCode model config or fall back to the openai preset.
  */
 export async function resolveModelPreset(
   options: BootstrapOptions = {},
 ): Promise<ModelPresetName | null> {
-  if (options.models) {
-    return options.models;
-  }
-  const interactive = options.interactive ?? Boolean(process.stdin.isTTY);
-  if (!interactive) {
-    return null;
-  }
-  const prompt = options.prompt ?? defaultPrompt;
-  const choice = await prompt(
-    '  Which provider should the six personas use?\n' +
-      '  [1] openai     gpt-5.5 + gpt-5.4-mini (default)\n' +
-      '  [2] anthropic  claude-sonnet-4-6 + claude-haiku-4-5\n' +
-      '  [3] google     gemini-3.1-pro-preview + gemini-3.5-flash\n' +
-      '  [s] skip       decide later (personas.<name>.model in lab/config.json)\n\n  > ',
-  );
-  return parseModelPresetChoice(choice);
+  const seed = await resolveModelSeed(options);
+  return seed.preset;
 }
 
-function personasBlockForPreset(
-  preset: ModelPresetName,
-): Record<string, { model: string }> {
-  const block: Record<string, { model: string }> = {};
+export async function resolveModelSeed(
+  options: BootstrapOptions = {},
+): Promise<ModelSeed> {
+  if (options.models) {
+    return {
+      kind: 'preset',
+      source: '--models',
+      preset: options.models,
+      personas: personasBlockForPreset(options.models),
+    };
+  }
+
+  const interactive = options.interactive ?? Boolean(process.stdin.isTTY);
+  if (interactive) {
+    const prompt = options.prompt ?? defaultPrompt;
+    const choice = await prompt(
+      '  Which provider should the six personas use?\n' +
+        '  [1] openai     gpt-5.5 + gpt-5.4-mini (default)\n' +
+        '  [2] anthropic  claude-sonnet-4-6 + claude-haiku-4-5\n' +
+        '  [3] google     gemini-3.1-pro-preview + gemini-3.5-flash\n' +
+        '  [d] detect     use existing OpenCode model config\n\n  > ',
+    );
+    const chosen = parseModelPresetChoice(choice);
+    if (chosen) {
+      return {
+        kind: 'preset',
+        source: 'interactive prompt',
+        preset: chosen,
+        personas: personasBlockForPreset(chosen),
+      };
+    }
+  }
+
+  const detected = detectedOpenCodeModels(options);
+  const modelPreset = detected.model ? presetFromModel(detected.model) : null;
+  const smallPreset = detected.smallModel
+    ? presetFromModel(detected.smallModel)
+    : null;
+
+  if (detected.model && detected.smallModel) {
+    if (modelPreset && modelPreset === smallPreset) {
+      return {
+        kind: 'preset',
+        source: detected.source ?? 'OpenCode config',
+        preset: modelPreset,
+        personas: personasBlockForPreset(modelPreset),
+      };
+    }
+    return {
+      kind: 'detected-pair',
+      source: detected.source ?? 'OpenCode config',
+      preset: null,
+      personas: personasBlockForModelPair(detected.model, detected.smallModel),
+    };
+  }
+
+  const detectedModel = detected.model ?? detected.smallModel;
+  if (detectedModel) {
+    const preset = presetFromModel(detectedModel);
+    if (preset) {
+      return {
+        kind: 'preset',
+        source: detected.source ?? 'OpenCode config',
+        preset,
+        personas: personasBlockForPreset(preset),
+      };
+    }
+    return {
+      kind: 'detected-single',
+      source: detected.source ?? 'OpenCode config',
+      preset: null,
+      personas: personasBlockForSingleModel(detectedModel),
+    };
+  }
+
+  return {
+    kind: 'preset',
+    source: 'default fallback',
+    preset: 'openai',
+    personas: personasBlockForPreset('openai'),
+  };
+}
+
+function personasBlockForPreset(preset: ModelPresetName): PersonasConfig {
+  const block: PersonasConfig = {};
   for (const [persona, model] of Object.entries(MODEL_PRESETS[preset])) {
+    block[persona as PersonaName] = { model };
+  }
+  return block;
+}
+
+function personasBlockForSingleModel(model: string): PersonasConfig {
+  const block: PersonasConfig = {};
+  for (const persona of Object.keys(MODEL_PRESETS.openai) as PersonaName[]) {
     block[persona] = { model };
   }
+  return block;
+}
+
+function personasBlockForModelPair(
+  frontierModel: string,
+  cheapModel: string,
+): PersonasConfig {
+  const block = personasBlockForSingleModel(frontierModel);
+  block.librarian = { model: cheapModel };
+  block.coder = { model: cheapModel };
   return block;
 }
 
@@ -503,12 +687,27 @@ export async function maybeReadObsidianMcp(
 // Step 3 — Write the seed config files
 // ──────────────────────────────────────────────────────────────────────────
 
-function writeJsonIfMissing(target: string, body: unknown): boolean {
+function writeAmoreConfigIfMissing(
+  target: string,
+  legacyPath: string,
+  body: Record<string, unknown>,
+): boolean {
   if (existsSync(target)) {
     return false;
   }
+
+  const legacy = readJsonObject(legacyPath);
+  const merged = legacy ? { ...body, ...legacy } : body;
+  const seededPersonas = isJsonObject(body.personas) ? body.personas : {};
+  const legacyPersonas = isJsonObject(legacy?.personas) ? legacy.personas : {};
+  const mergedPersonas = { ...seededPersonas, ...legacyPersonas };
+  merged.personas = mergedPersonas;
+  if (Object.keys(mergedPersonas).length === 0) {
+    merged.personas = body.personas;
+  }
+
   mkdirSync(dirname(target), { recursive: true });
-  writeFileSync(target, `${JSON.stringify(body, null, 2)}\n`, 'utf8');
+  writeFileSync(target, `${JSON.stringify(merged, null, 2)}\n`, 'utf8');
   return true;
 }
 
@@ -880,24 +1079,31 @@ export function writeBootstrapFiles(args: {
   labDir?: string;
   resolvedWikiPath: string | null;
   obsidianMcp: ObsidianMcpEntry | null;
-  modelPreset?: ModelPresetName | null;
+  modelSeed: ModelSeed;
 }): BootstrapWriteResult {
   const labRoot = resolve(args.cwd, args.labDir ?? 'lab');
   const labDirDisplay = args.labDir ?? 'lab';
 
-  const labConfigPath = join(labRoot, 'config.json');
-  const labConfigBody: Record<string, unknown> = {
+  const amoreConfigPath = getProjectAmoreConfigPath(args.cwd);
+  const legacyLabConfigPath = join(labRoot, 'config.json');
+  const amoreConfigBody: Record<string, unknown> = {
     schema_version: CONFIG_SCHEMA_VERSION,
+    lab_dir: args.labDir ?? './lab',
+    orchestration: {
+      max_parallel: DEFAULT_ORCHESTRATION_MAX_PARALLEL,
+    },
+    personas: args.modelSeed.personas,
   };
   if (args.resolvedWikiPath) {
-    labConfigBody.literature_wiki_path = args.resolvedWikiPath;
+    amoreConfigBody.literature_wiki_path = args.resolvedWikiPath;
   }
-  if (args.modelPreset) {
-    labConfigBody.personas = personasBlockForPreset(args.modelPreset);
-  }
-  const labConfigWritten = writeJsonIfMissing(labConfigPath, labConfigBody);
+  const amoreConfigWritten = writeAmoreConfigIfMissing(
+    amoreConfigPath,
+    legacyLabConfigPath,
+    amoreConfigBody,
+  );
 
-  const opencodeConfigPath = join(args.cwd, 'opencode.json');
+  const opencodeConfigPath = join(args.cwd, PROJECT_OPENCODE_CONFIG_PATH);
   const opencodeConfig = writeOrUpdateOpencodeConfig(
     opencodeConfigPath,
     args.obsidianMcp,
@@ -909,7 +1115,8 @@ export function writeBootstrapFiles(args: {
   });
 
   return {
-    labConfig: labConfigWritten ? labConfigPath : null,
+    labConfig: null,
+    amoreConfig: amoreConfigWritten ? amoreConfigPath : null,
     opencodeConfig:
       opencodeConfig.action === 'kept' ? null : opencodeConfigPath,
     agentsFile,
@@ -926,6 +1133,7 @@ export function writeBootstrapFiles(args: {
 
 export interface BootstrapResult {
   labConfig: string | null;
+  amoreConfig: string | null;
   opencodeConfig: string | null;
   agentsFile: string | null;
   resolvedWikiPath: string | null;
@@ -953,7 +1161,7 @@ export async function bootstrapProjectConfig(
   const cwd = options.cwd ?? process.cwd();
   const wiki = await resolveLiteratureWiki(options);
   const warnings = [...wiki.warnings];
-  const modelPreset = await resolveModelPreset(options);
+  const modelSeed = await resolveModelSeed(options);
 
   let mcpEntry: ObsidianMcpEntry | null = null;
   if (wiki.resolvedPath) {
@@ -967,12 +1175,13 @@ export async function bootstrapProjectConfig(
     labDir: options.labDir,
     resolvedWikiPath: wiki.resolvedPath,
     obsidianMcp: mcpEntry,
-    modelPreset,
+    modelSeed,
   });
   warnings.push(...written.warnings);
 
   return {
     labConfig: written.labConfig,
+    amoreConfig: written.amoreConfig,
     opencodeConfig: written.opencodeConfig,
     agentsFile: written.agentsFile,
     resolvedWikiPath: wiki.resolvedPath,
@@ -1017,8 +1226,10 @@ the project lab or literature wiki moves.
   - \`{{LAB_DIR}}/index.md\` - generated catalog; manual edits are not kept.
 - {{LITERATURE_WIKI_LINE}}
 - \`opencode.json\` - OpenCode plugin entry. The amore plugin registers the
-  personas and bundled skill path at runtime. Optional MCPs are wired only
-  when you choose them during install.
+  personas and bundled skill path at runtime. Optional MCPs are wired only when
+  you choose them during install.
+- \`.opencode/amore.json\` - persona models and amore project config. Edit this
+  file to change models, temperatures, councillors, or the literature wiki path.
 
 ## Personas
 
@@ -1089,7 +1300,7 @@ function renderAgentsMd(vars: AgentsMdVars): string {
     : 'null';
   const literatureWikiLine = vars.literatureWikiPath
     ? `\`${vars.literatureWikiPath}\` - outside literature wiki.`
-    : `_No literature wiki configured for this project - set \`literature_wiki_path\` in \`${vars.labDir}/config.json\` to enable librarian._`;
+    : '_No literature wiki configured for this project - set `literature_wiki_path` in `.opencode/amore.json` to enable librarian._';
   const wikiSection = vars.literatureWikiPath
     ? `## Literature wiki
 
@@ -1106,7 +1317,7 @@ asks for a contract before writing.`
     : `## Literature wiki
 
 No literature wiki is configured for this project yet. To enable librarian,
-set \`literature_wiki_path\` in \`${vars.labDir}/config.json\`.`;
+set \`literature_wiki_path\` in \`.opencode/amore.json\`.`;
   return STARTER_AGENTS_MD_TEMPLATE.replaceAll(
     '{{PROJECT_NAME}}',
     vars.projectName,

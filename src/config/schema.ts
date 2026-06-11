@@ -3,7 +3,11 @@
 // Run scripts/generate-schema.ts to produce ah-my-openresearch.schema.json for IDE autocomplete.
 
 import { z } from 'zod';
-import { CONFIG_SCHEMA_VERSION, DEFAULT_LAB_DIR } from './constants';
+import {
+  CONFIG_SCHEMA_VERSION,
+  DEFAULT_LAB_DIR,
+  DEFAULT_ORCHESTRATION_MAX_PARALLEL,
+} from './constants';
 
 // ────────────────────────────────────────────────────────────────────
 // Tier
@@ -85,8 +89,8 @@ export type PersonasConfig = z.infer<typeof PersonasConfigSchema>;
 
 // Obsidian MCP env-overrides. The MCP itself reads OBSIDIAN_API_KEY and
 // related env vars at server-startup time (see src/mcp/obsidian.ts). These
-// schema fields exist so a project can declare them in lab/config.json and
-// `amore install`/`amore doctor` can verify them without re-reading process.env.
+// schema fields exist so a project can declare them in .opencode/amore.json
+// and `amore install`/`amore doctor` can verify them without re-reading process.env.
 export const ObsidianMcpConfigSchema = z.strictObject({
   api_key: z.string().optional(),
   base_url: z.string().optional(),
@@ -101,6 +105,23 @@ export const McpsConfigSchema = z.strictObject({
   obsidian: ObsidianMcpConfigSchema.optional(),
 });
 export type McpsConfig = z.infer<typeof McpsConfigSchema>;
+
+// ────────────────────────────────────────────────────────────────────
+// Orchestration policy
+// ────────────────────────────────────────────────────────────────────
+
+export const OrchestrationConfigSchema = z.strictObject({
+  // Maximum number of independent specialist tasks the orchestrator may place
+  // in one execution wave. This is a planning limit consumed by the
+  // orchestrate-task skill, not a separate runtime scheduler.
+  max_parallel: z
+    .number()
+    .int()
+    .min(1)
+    .max(20)
+    .default(DEFAULT_ORCHESTRATION_MAX_PARALLEL),
+});
+export type OrchestrationConfig = z.infer<typeof OrchestrationConfigSchema>;
 
 // ────────────────────────────────────────────────────────────────────
 // Top-level amore config
@@ -123,5 +144,9 @@ export const AmoreConfigSchema = z.strictObject({
 
   // Per-MCP user config. Keyed by MCP name from MCP_REGISTRY.
   mcps: McpsConfigSchema.optional(),
+
+  // Multi-agent planning policy. Used by orchestrator/orchestrate-task to keep
+  // automatic dispatch explicit, bounded, and conflict-aware.
+  orchestration: OrchestrationConfigSchema.optional(),
 });
 export type AmoreConfig = z.infer<typeof AmoreConfigSchema>;

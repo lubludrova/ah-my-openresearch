@@ -47,8 +47,11 @@ tested_by: []
 
 async function createInstalledProject(projectRoot: string): Promise<string> {
   const labDir = await createLab(projectRoot);
+  const homeDir = await mkdtemp(join(tmpdir(), 'amore-doctor-home-'));
+  tempDirs.push(homeDir);
   await bootstrapProjectConfig({
     cwd: projectRoot,
+    homeDir,
     interactive: false,
     noWiki: true,
   });
@@ -101,7 +104,7 @@ describe('doctor', () => {
         (check) =>
           check.label === 'opencode skills' &&
           check.status === 'ok' &&
-          check.message.includes('16 bundled skills'),
+          check.message.includes('17 bundled skills'),
       ),
     ).toBe(true);
   });
@@ -164,11 +167,11 @@ describe('doctor', () => {
     ).toBe(true);
   });
 
-  test('fails when lab/config.json is invalid', async () => {
+  test('fails when .opencode/amore.json is invalid', async () => {
     const projectRoot = await tempProject();
-    const labDir = await createInstalledProject(projectRoot);
+    await createInstalledProject(projectRoot);
     await writeFile(
-      resolve(labDir, 'config.json'),
+      resolve(projectRoot, '.opencode', 'amore.json'),
       JSON.stringify({ schema_version: 'v1.0' }),
       'utf8',
     );
@@ -179,7 +182,7 @@ describe('doctor', () => {
     expect(
       result.checks.some(
         (check) =>
-          check.label === 'lab/config.json' &&
+          check.label === '.opencode/amore.json' &&
           check.status === 'error' &&
           check.message.includes('schema_version'),
       ),

@@ -57,4 +57,12 @@ describe('bundled skills', () => {
 
     expect(failures).toEqual([]);
   });
+
+  test('wiki-lint reports are constrained to wiki reports directory', () => {
+    const raw = readFileSync(join(SKILLS_DIR, 'wiki-lint', 'SKILL.md'), 'utf8');
+    expect(raw).toContain('<WIKI_PATH>/reports/');
+    expect(raw).toContain('Do not write `LINT_REPORT.md` to the wiki root');
+    expect(raw).toContain('English by default');
+    expect(raw).not.toContain('**REPORT_PATH** — `<WIKI_PATH>/LINT_REPORT.md`');
+  });
 });

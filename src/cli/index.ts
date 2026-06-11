@@ -22,7 +22,7 @@ Usage:
 
 Commands:
   install      Create the local <project>/lab/ scaffold and seed
-               <project>/lab/config.json + opencode.json + AGENTS.md
+               <project>/.opencode/amore.json + OpenCode config + AGENTS.md
                (idempotent; preserves existing fields).
   doctor       Validate the local <project>/lab/ contract.
 
@@ -33,14 +33,15 @@ Options:
                      Warns instead of failing if the path does not exist yet.
   --no-wiki          Skip literature_wiki_path entirely.
   --models           Persona model preset (openai | anthropic | google).
-                     Writes personas.<name>.model into lab/config.json. In a
-                     TTY install prompts instead; without the flag in
-                     non-interactive mode personas keep the code defaults.
+                      Writes personas.<name>.model into .opencode/amore.json. In a
+                      TTY install prompts instead; without the flag, install
+                      detects existing OpenCode model / small_model when it can
+                      and otherwise falls back to the openai preset.
   --with-obsidian-mcp  Auto-wire mcp.obsidian into opencode.json from the wiki's
                      Local REST API plugin (reads its data.json). Required in
                      non-interactive mode; in a TTY install prompts instead.
   --reconcile        Write README.md.new / SCHEMA.md.new candidates if docs differ.
-  --no-bootstrap     Skip lab/config.json, opencode.json, and AGENTS.md seeds.
+  --no-bootstrap     Skip .opencode/amore.json, OpenCode config, and AGENTS.md seeds.
   --repair           Repair safe lab files and regenerate index.md.
   --json             Print machine-readable doctor output.
   -h, --help         Show help.

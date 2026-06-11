@@ -7,7 +7,7 @@ import {
   type WikiResolution,
   maybeReadObsidianMcp,
   resolveLiteratureWiki,
-  resolveModelPreset,
+  resolveModelSeed,
   writeBootstrapFiles,
 } from './bootstrap';
 
@@ -15,13 +15,13 @@ export interface InstallOptions {
   cwd?: string;
   labDir?: string;
   reconcile?: boolean;
-  /** When false, skip lab/config.json, opencode.json, and AGENTS.md seeds. */
+  /** When false, skip .opencode/amore.json, OpenCode config, and AGENTS.md seeds. */
   bootstrap?: boolean;
   /** Explicit literature wiki path. */
   literatureWiki?: string;
   /** Opt out of literature_wiki_path. */
   noWiki?: boolean;
-  /** Opt-in to wiring Obsidian MCP into opencode.json (needed in non-TTY). */
+  /** Opt-in to wiring Obsidian MCP into OpenCode config (needed in non-TTY). */
   withObsidianMcp?: boolean;
   /** Persona model preset from --models <name>. */
   models?: ModelPresetName;
@@ -59,8 +59,24 @@ function bulletWarn(message: string): void {
   out(`    ⚠ ${message}`);
 }
 
+function printPersonaModels(
+  personas: Record<string, { model?: string }>,
+): void {
+  for (const name of [
+    'orchestrator',
+    'librarian',
+    'prospector',
+    'coder',
+    'council',
+    'writer',
+  ]) {
+    out(`      @${name.padEnd(12)} ${personas[name]?.model ?? '(default)'}`);
+  }
+}
+
 function nextSteps(args: {
   labRelative: string;
+  opencodeConfigRelative: string;
   wiki: WikiResolution;
   agentsFileCreated: boolean;
 }): void {
@@ -74,7 +90,11 @@ function nextSteps(args: {
   out('        log.md         append-only lab changelog');
   out('        edges.jsonl    typed graph between lab artifacts');
   out('        index.md       generated catalog');
-  out('      opencode.json    plugin entry for the host CLI');
+  out(
+    `      ${args.opencodeConfigRelative.padEnd(14)} plugin entry for the host CLI`,
+  );
+  out('      .opencode/');
+  out('        amore.json     persona models + amore project config');
   out(
     `      AGENTS.md        project rules (${args.agentsFileCreated ? 'created' : 'already existed'})`,
   );
@@ -171,13 +191,17 @@ export async function install(options: InstallOptions = {}): Promise<void> {
 
   // ── B1b: Persona models ─────────────────────────────────────────────
   section('Persona models');
-  const modelPreset = await resolveModelPreset(bootstrapOpts);
-  if (modelPreset) {
-    out(`    Using the "${modelPreset}" preset for all six personas.`);
+  const modelSeed = await resolveModelSeed(bootstrapOpts);
+  if (modelSeed.preset) {
+    out(
+      `    Using the "${modelSeed.preset}" preset for all six personas (${modelSeed.source}).`,
+    );
   } else {
-    out('    Skipped — personas use the code defaults (openai preset).');
-    out('    Override later via personas.<name>.model in lab/config.json.');
+    out(`    Using detected OpenCode models from ${modelSeed.source}.`);
   }
+  out('    Writing persona models to .opencode/amore.json.');
+  out();
+  printPersonaModels(modelSeed.personas as Record<string, { model?: string }>);
 
   // ── B2: Obsidian MCP (only if a wiki path was chosen) ──────────────
   let mcpEntry: ObsidianMcpEntry | null = null;
@@ -206,7 +230,7 @@ export async function install(options: InstallOptions = {}): Promise<void> {
     labDir: options.labDir,
     resolvedWikiPath: wiki.resolvedPath,
     obsidianMcp: mcpEntry,
-    modelPreset,
+    modelSeed,
   });
 
   section('Setup');
@@ -214,14 +238,13 @@ export async function install(options: InstallOptions = {}): Promise<void> {
   if (wiki.kind === 'create' && wiki.resolvedPath) {
     bulletOk('Wiki created', wiki.resolvedPath);
   }
-  if (written.labConfig) {
+  if (written.amoreConfig) {
     const wikiPart = wiki.resolvedPath
       ? `literature_wiki_path=${wiki.resolvedPath}`
       : 'no literature_wiki_path';
-    const modelPart = modelPreset ? `, models=${modelPreset}` : '';
     bulletOk(
-      'Lab config',
-      `${labRelative}/config.json (${wikiPart}${modelPart})`,
+      'amore config',
+      `.opencode/amore.json (${wikiPart}, persona models=${modelSeed.preset ?? 'detected'})`,
     );
   }
   if (written.opencodeConfig) {
@@ -230,7 +253,7 @@ export async function install(options: InstallOptions = {}): Promise<void> {
       written.opencodeConfigAction === 'updated' ? 'updated' : 'created';
     bulletOk(
       'OpenCode config',
-      `opencode.json ${action} (plugin + disabled build/plan${mcpPart})`,
+      `${relative(cwd, written.opencodeConfig) || 'opencode.json'} ${action} (plugin + disabled build/plan${mcpPart})`,
     );
     if (written.opencodeConfigBackup) {
       bulletOk(
@@ -241,7 +264,7 @@ export async function install(options: InstallOptions = {}): Promise<void> {
   } else {
     const keptMessage =
       written.opencodeConfigAction === 'kept'
-        ? 'opencode.json not changed (already configured or see warning)'
+        ? 'OpenCode config not changed (already configured or see warning)'
         : 'opencode.json already configured';
     bulletOk('OpenCode config', keptMessage);
   }
@@ -263,6 +286,9 @@ export async function install(options: InstallOptions = {}): Promise<void> {
   section('Next steps');
   nextSteps({
     labRelative,
+    opencodeConfigRelative: written.opencodeConfig
+      ? relative(cwd, written.opencodeConfig) || 'opencode.json'
+      : 'opencode.json',
     wiki,
     agentsFileCreated: written.agentsFile !== null,
   });

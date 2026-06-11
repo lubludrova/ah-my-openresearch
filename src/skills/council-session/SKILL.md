@@ -32,10 +32,11 @@ deterministic verdict and decides.
 - **ROSTER_CONFIG** — the panel is the set of registered
   `councillor-*` subagents. The amore plugin registers them at startup
   from, in priority order:
-  1. `<project>/lab/config.json` → `personas.council.councillors`
+  1. `<project>/.opencode/amore.json` → `personas.council.councillors`
      (array of `{model, role?}`).
-  2. `~/.config/opencode/ah-my-openresearch.json` → same field.
-  3. Built-in default (see DEFAULT_ROSTER).
+  2. `<project>/lab/config.json` legacy fallback → same field.
+  3. `~/.config/opencode/ah-my-openresearch.json` → same field.
+  4. Built-in default (see DEFAULT_ROSTER).
   To change the panel, edit the config and restart the host — do not
   invent councillors that are not registered.
 - **DEFAULT_ROSTER** — 3 councillors, diverse model families

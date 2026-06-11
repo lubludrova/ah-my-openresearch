@@ -1,6 +1,12 @@
 import { homedir } from 'node:os';
 import { isAbsolute, resolve } from 'node:path';
-import { DEFAULT_CONFIG_PATH, DEFAULT_LAB_DIR } from '../config/constants';
+import {
+  DEFAULT_CONFIG_PATH,
+  DEFAULT_LAB_DIR,
+  DEFAULT_PROJECT_CONFIG_PATH,
+  LEGACY_LAB_CONFIG_FILENAME,
+  ROOT_PROJECT_CONFIG_PATH,
+} from '../config/constants';
 import type { AmoreConfig } from '../config/schema';
 
 export function expandHome(inputPath: string, homeDir = homedir()): string {
@@ -35,5 +41,13 @@ export function getProjectLabConfigPath(
   cwd: string,
   config?: Pick<AmoreConfig, 'lab_dir'>,
 ): string {
-  return resolve(getProjectLabDir(cwd, config), 'config.json');
+  return resolve(getProjectLabDir(cwd, config), LEGACY_LAB_CONFIG_FILENAME);
+}
+
+export function getProjectAmoreConfigPath(cwd: string): string {
+  return resolveProjectPath(cwd, DEFAULT_PROJECT_CONFIG_PATH);
+}
+
+export function getRootProjectAmoreConfigPath(cwd: string): string {
+  return resolveProjectPath(cwd, ROOT_PROJECT_CONFIG_PATH);
 }

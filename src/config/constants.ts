@@ -5,9 +5,15 @@ export const LAB_SCHEMA_VERSION = 'v1.0';
 export const CONFIG_SCHEMA_FILENAME = 'ah-my-openresearch.schema.json';
 
 export const DEFAULT_CONFIG_PATH = '~/.config/opencode/ah-my-openresearch.json';
+export const DEFAULT_PROJECT_CONFIG_PATH = '.opencode/amore.json';
+export const ROOT_PROJECT_CONFIG_PATH = 'amore.json';
+export const LEGACY_LAB_CONFIG_FILENAME = 'config.json';
+export const PROJECT_OPENCODE_CONFIG_PATH = 'opencode.json';
+export const LEGACY_PROJECT_OPENCODE_CONFIG_PATH = '.opencode/opencode.json';
 
 // Lab: per-project research record (sits next to project code).
 export const DEFAULT_LAB_DIR = './lab';
+export const DEFAULT_ORCHESTRATION_MAX_PARALLEL = 5;
 
 // Outside literature wiki: cross-project read/write literature store.
 // Generic fallback only — install never writes a wiki path the user did

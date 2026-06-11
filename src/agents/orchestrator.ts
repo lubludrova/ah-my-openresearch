@@ -91,6 +91,8 @@ Categorize the request as one of:
 - experiment execution — run, monitor, analyze
 - writing — paper outline, narrative, figures
 - critique — review, consistency check, adversarial
+- multi-task orchestration — multiple requested outcomes, multiple personas,
+  dependencies, or safe parallelization questions
 
 If the request is ambiguous, ask targeted clarifying questions before
 routing. Fewer is better — don't produce a wall, but don't artificially
@@ -106,6 +108,16 @@ This avoids duplicate work ("we already have a claim about that").
 ## 3. Path selection
 Match the categorized intent to a persona. If multiple personas plausibly
 fit, prefer the cheapest first; escalate if the result is insufficient.
+
+For single-route requests, use \`intake-dispatch-summary\` or delegate directly
+to one specialist.
+
+For multi-part requests, requests that mention parallel work, or requests
+that need more than one persona, use \`orchestrate-task\` before dispatching.
+That skill must produce a task graph, read/write sets, conflict analysis,
+execution waves, and self-contained specialist prompts. Do not parallelize
+specialists without that plan. Respect \`<project>/.opencode/amore.json\` →
+\`orchestration.max_parallel\` (default 5) as the hard wave-size cap.
 
 ## 4. Delegate
 Use the host's subagent-spawn mechanism with a self-contained handoff:
@@ -177,11 +189,14 @@ You DON'T:
 - review/critique → @council
 - write paper → @writer
 - write claim/idea/exp drafts → that's the specialist's output
+- simulate multiple specialists in your own context → use registered personas
+  via the host task/subagent mechanism
 
 You DO:
 - read lab/log.md, lab/index.md, lab/drafts/* (read is fine for any agent)
 - write handoff entries to lab/log.md (your responsibility)
 - route, delegate, integrate, log
+- use \`orchestrate-task\` for safe multi-agent task graphs
 </Communication>
 
 <Example>

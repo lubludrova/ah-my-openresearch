@@ -34,10 +34,10 @@ export interface CreateAllAgentsOptions {
   /** Path to the outside literature wiki (passed to librarian). */
   wikiPath?: string;
   /**
-   * Persona overrides from amore user config (lab/config.json or the global
-   * ~/.config/opencode/ah-my-openresearch.json). Applied after `models` /
-   * `skills`; user entries in opencode.json still win over everything at
-   * plugin-merge time.
+   * Persona overrides from amore user config (.opencode/amore.json, legacy
+   * lab/config.json, or the global ~/.config/opencode/ah-my-openresearch.json).
+   * Applied after `models` / `skills`; user OpenCode agent entries still win
+   * over everything at plugin-merge time.
    */
   personas?: PersonasConfig;
 }

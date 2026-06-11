@@ -3,8 +3,8 @@ name: wiki-lint
 description: >-
   Health-check the user's outside literature wiki. Two modes: single-paper and
   full-wiki. Reports issues with severity and surfaces proactive suggestions
-  for new sources or unexplored branches. Writes LINT_REPORT.md to the wiki
-  root. Use when user says "lint", "audit the wiki", "check the wiki", "wiki
+  for new sources or unexplored branches. Writes a concise dated report under
+  the wiki reports/ directory only. Use when user says "lint", "audit the wiki", "check the wiki", "wiki
   health", "find broken links", "find orphans", "validate frontmatter", "wiki
   sanity check", or wants periodic maintenance of the literature wiki. Does NOT
   touch the project lab; use `amore doctor` for that. Does NOT auto-fix
@@ -31,8 +31,10 @@ markdown baseline.
 ## Constants
 
 - **WIKI_PATH** — outside literature wiki path, configured per project.
-- **REPORT_PATH** — `<WIKI_PATH>/LINT_REPORT.md`. Single file,
-  overwritten on each run.
+- **REPORT_DIR** — `<WIKI_PATH>/reports/`. All lint reports are written here
+  and nowhere else.
+- **REPORT_PATH** — `<WIKI_PATH>/reports/YYYY-MM-DD-wiki-lint-<mode>.md`.
+  Write a new dated report for each run; do not overwrite root-level reports.
 - **STALE_DAYS = 180** — Pages untouched for ≥ this many days are WARN
   (only if frontmatter `updated:` exists).
 - **HUB_THRESHOLD = 8** — Pages with ≥ this many incoming wikilinks are
@@ -204,79 +206,94 @@ Produce 3-7 suggestions, numbered:
 Each suggestion: one line + (optional) one explanatory line. User picks
 what to act on; lint does NOT act.
 
+## Report directory rule
+
+Before writing the report:
+
+1. Check whether `<WIKI_PATH>/reports/` exists.
+2. If it exists, write the report there.
+3. If it does not exist, ask the user whether to create it or provide the
+   correct reports directory. Do not write `LINT_REPORT.md` to the wiki root.
+
+Reports are concise and in English by default unless the user explicitly asks
+for another language.
+
 ## Output format
 
-`<WIKI_PATH>/LINT_REPORT.md`:
+`<WIKI_PATH>/reports/YYYY-MM-DD-wiki-lint-<mode>.md`:
 
 ````markdown
 # Wiki Lint Report — <YYYY-MM-DD HH:MM>
 
+Date: <YYYY-MM-DD HH:MM>
 Mode: <full | paper:<slug> | scope:<category>>
+Scope: <one-line scope>
 Contract: <found at <path> | NOT FOUND (running baseline only)>
 Pages scanned: <N>
 Raw files scanned: <M or "N/A">
 Issues: ERROR=<x> · WARN=<y> · INFO=<z>
 
-## Top 5 to fix first
+## Summary
+
+- <3-5 short bullets with the most important state>
+
+## Findings
 
 1. [ERROR] <category> — <one-line description>
 2. ...
 
-## Structural baseline
+## Details
+
+### Structural baseline
 
 | Severity | File | Issue | Suggested fix |
 |---|---|---|---|
 | ERROR | wiki/<slug>.md:42 | Broken wikilink `[[missing-page]]` | Create the page or remove the link |
 | WARN | wiki/<slug>.md | Heading hierarchy skip (H1 → H3) | Insert H2 between |
 
-## Contract-driven
+### Contract-driven
 
 <table per category, or "no contract-defined rules to check">
 
-## Graph health
+### Graph health
 
-### Orphans (<n>)
+#### Orphans (<n>)
 - [[<slug>]] — no incoming links
 
-### Missing pages / red links (<n>)
+#### Missing pages / red links (<n>)
 - [[<missing-slug>]] referenced from <list of source files>
 
-### Bridge / hub pages (<n>)
+#### Bridge / hub pages (<n>)
 - [[<slug>]] — <count> incoming links
 
-### Index drift (<n>)
+#### Index drift (<n>)
 - [[<slug>]] — index says "<x>", page first line is "<y>"
 
-### Index duplicates / missing
+#### Index duplicates / missing
 - ...
 
-## Content
+### Content
 
 | Severity | Page | Issue | Suggested fix |
 |---|---|---|---|
 | WARN | wiki/<slug>.md | Stale (updated <date>, no log entry since) | Review or archive |
 | INFO | wiki/<slug>.md | 7 unresolved `[?]` markers, last touched 142 days ago | Re-read or close |
 
-## Raw / source materials
+### Raw / source materials
 
 <table or "no raw/ in this wiki" or "contract doesn't reference raw/">
 
-## Proactive suggestions
+## Sources
+
+- Wiki contract: <path or "none">
+- Wiki index: <path or "not found">
+- Scanned scope: <paths/globs>
+
+## Next
 
 1. **Underexplored branch**: <topic> — <count> related pages but no MoC. Consider creating `moc-<topic>.md`.
 2. **Missing canonical source**: <author-year-keyword> mentioned in 3 pages but no page exists. Worth ingesting?
 3. ...
-
-## Summary
-
-- Pages scanned: <N>
-- Contract checks ran: <yes | no — baseline only>
-- Total ERROR: <x>
-- Total WARN: <y>
-- Total INFO: <z>
-- Suggestions for follow-up: <count>
-
-Time: <YYYY-MM-DD HH:MM> · Mode: <mode>
 ````
 
 ## Examples
@@ -285,31 +302,46 @@ Time: <YYYY-MM-DD HH:MM> · Mode: <mode>
 
 Input: `full` (or empty)
 
-Output (excerpt of `LINT_REPORT.md`):
+Output (excerpt of `reports/2026-06-04-wiki-lint-full.md`):
 ```
 # Wiki Lint Report — 2026-06-04 12:00
 
 Mode: full
+Scope: full wiki
 Contract: found at <WIKI_PATH>/AGENTS.md
 Pages scanned: 142
 Raw files scanned: 87
 Issues: ERROR=0 · WARN=2 · INFO=11
 
-## Top 5 to fix first
+## Summary
+
+- No ERROR issues found.
+- 2 WARN issues need review.
+- 11 INFO observations are optional follow-ups.
+
+## Findings
 
 1. [WARN] content — wiki/<slug>.md is stale (updated 2025-12-01)
 2. [WARN] graph — wiki/<slug-2>.md index drift
 
-## Structural baseline
+## Details
+
+### Structural baseline
 (no errors)
 
-## Graph health
+### Graph health
 
-### Bridge / hub pages (3)
+#### Bridge / hub pages (3)
 - [[<topic-slug>]] — 18 incoming links
 - ...
 
-## Proactive suggestions
+## Sources
+
+- Wiki contract: <WIKI_PATH>/AGENTS.md
+- Wiki index: <WIKI_PATH>/wiki/index.md
+- Scanned scope: wiki/**/*.md
+
+## Next
 
 1. **Underexplored branch**: <topic> — 4 related pages but no MoC.
 2. **Missing canonical source**: <author-year-keyword> mentioned in 2 pages but no page exists.
@@ -397,8 +429,10 @@ were skipped. Create a contract to enable full lint coverage.
 - Never invent rules not in the contract. If the contract doesn't
   specify a check, fall back to baseline OR skip — don't impose.
 - Never lint the project lab. That's `amore doctor` territory.
-- Never edit `LINT_REPORT.md` content in place. Overwrite the whole
-  file with each run; preserving stale issues confuses the user.
+- Never write reports to the wiki root. Reports belong only under
+  `<WIKI_PATH>/reports/`.
+- Never edit old report content in place. Write a new dated report for each
+  run; preserving stale issues confuses the user.
 - Never act on proactive suggestions. They are for human review only —
   surface as a numbered list, do not silently ingest, create, or link.
 - Never count meta files (`_*.md`) as orphans, missing, or sparse.

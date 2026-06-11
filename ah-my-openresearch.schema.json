@@ -260,6 +260,18 @@
         }
       },
       "additionalProperties": false
+    },
+    "orchestration": {
+      "type": "object",
+      "properties": {
+        "max_parallel": {
+          "default": 5,
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 20
+        }
+      },
+      "additionalProperties": false
     }
   },
   "additionalProperties": false,

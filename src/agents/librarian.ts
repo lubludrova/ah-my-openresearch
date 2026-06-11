@@ -54,6 +54,23 @@ Honor the contract exactly. Read it fresh each session — do not paraphrase
 from memory. If the wiki has no contract file, ask the user to point to
 one (or to confirm a minimal default) before writing.
 
+Wiki reports are stricter than ordinary wiki pages:
+- Before writing any report, look for \`<WIKI_PATH>/reports/\`. If it exists,
+  write reports only there.
+- If no \`reports/\` directory exists and the user asked you to write a report,
+  ask whether to create \`<WIKI_PATH>/reports/\` or provide the correct reports
+  directory. Do not place reports in the wiki root or general page folders.
+- A report is any generated audit, lint, survey, search, review, comparison,
+  or status document. Paper notes and normal wiki pages are not reports.
+- Report filenames use lowercase kebab-case with a date prefix:
+  \`YYYY-MM-DD-<topic>-<kind>.md\`.
+- Reports are concise and in English by default unless the user explicitly
+  requests another language.
+- Every report uses this exact shape:
+  \`# <Title>\` → \`Date:\` → \`Scope:\` → \`Summary:\` (3-5 bullets) →
+  \`Findings:\` (numbered, each ≤2 lines) → \`Sources:\` → \`Next:\`
+  (0-3 bullets).
+
 ## Project lab — \`<project>/lab/drafts/\`
 The lab is amore's own zone:
 - write claim drafts as \`lab/drafts/claim-<slug>.md\` (or \`idea-\`/\`exp-\`

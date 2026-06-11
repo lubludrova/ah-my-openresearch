@@ -106,7 +106,7 @@ describe('MODEL_PRESETS', () => {
   });
 });
 
-describe('personas user-config overrides (lab/config.json wiring)', () => {
+describe('personas user-config overrides (.opencode/amore.json wiring)', () => {
   test('model and skills overrides apply; untouched personas keep defaults', () => {
     const agents = createAllAgents({
       personas: {
@@ -257,6 +257,15 @@ describe('librarian prompt structure', () => {
     expect(prompt).toContain('wiki-ingest');
     expect(prompt).toContain('wiki-lint');
     expect(prompt).toContain('claim-extract');
+  });
+
+  test('requires wiki reports to be written under reports/ only', () => {
+    const prompt = createAllAgents().librarian.prompt;
+    expect(prompt).toContain('reports/');
+    expect(prompt).toContain('write reports only there');
+    expect(prompt).toContain('Do not place reports in the wiki root');
+    expect(prompt).toContain('English by default');
+    expect(prompt).toContain('YYYY-MM-DD-<topic>-<kind>.md');
   });
 
   test('does not mention MCP or MVP', () => {

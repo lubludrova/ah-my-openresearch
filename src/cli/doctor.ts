@@ -6,7 +6,11 @@ import YAML from 'yaml';
 import { z } from 'zod';
 import pkg from '../../package.json' with { type: 'json' };
 import { loadAmoreConfig } from '../config';
-import { DEFAULT_PERSONA_MODELS } from '../config/constants';
+import {
+  DEFAULT_PERSONA_MODELS,
+  LEGACY_PROJECT_OPENCODE_CONFIG_PATH,
+  PROJECT_OPENCODE_CONFIG_PATH,
+} from '../config/constants';
 import { AmoreConfigSchema } from '../config/schema';
 import {
   EdgeSchema,
@@ -70,6 +74,7 @@ const REQUIRED_BUNDLED_SKILLS = [
   'intake-dispatch-summary',
   'monitor-experiment',
   'novelty-vs-wiki',
+  'orchestrate-task',
   'paper-audit',
   'paper-figure',
   'paper-plan',
@@ -170,11 +175,17 @@ function stringArray(value: unknown): string[] | null {
 
 async function validateAmoreConfig(
   labDir: string,
+  cwd: string,
   checks: DoctorCheck[],
 ): Promise<void> {
-  const configPath = resolve(labDir, 'config.json');
+  const primaryConfigPath = resolve(cwd, '.opencode', 'amore.json');
+  const rootConfigPath = resolve(cwd, 'amore.json');
+  const legacyConfigPath = resolve(labDir, 'config.json');
+  const configPath = [primaryConfigPath, rootConfigPath, legacyConfigPath].find(
+    existsSync,
+  );
 
-  if (!existsSync(configPath)) {
+  if (!configPath) {
     return;
   }
 
@@ -185,7 +196,7 @@ async function validateAmoreConfig(
     pushCheck(
       checks,
       'error',
-      'lab/config.json',
+      relative(cwd, configPath) || configPath,
       `invalid JSON: ${formatError(error)}`,
     );
     return;
@@ -196,13 +207,23 @@ async function validateAmoreConfig(
     pushCheck(
       checks,
       'error',
-      'lab/config.json',
+      relative(cwd, configPath) || configPath,
       formatZodError(parsedConfig.error),
     );
     return;
   }
 
-  pushCheck(checks, 'ok', 'lab/config.json', 'amore config is valid.');
+  const label = relative(cwd, configPath) || configPath;
+  if (configPath === legacyConfigPath) {
+    pushCheck(
+      checks,
+      'warn',
+      label,
+      'legacy amore config is valid; new installs use .opencode/amore.json.',
+    );
+    return;
+  }
+  pushCheck(checks, 'ok', label, 'amore config is valid.');
 }
 
 function hasDisabledAgent(
@@ -281,13 +302,20 @@ async function validateOpenCodeWiring(
   cwd: string,
   checks: DoctorCheck[],
 ): Promise<void> {
-  const opencodePath = resolve(cwd, 'opencode.json');
+  const preferred = resolve(cwd, PROJECT_OPENCODE_CONFIG_PATH);
+  const legacy = resolve(cwd, LEGACY_PROJECT_OPENCODE_CONFIG_PATH);
+  const opencodePath = existsSync(preferred)
+    ? preferred
+    : existsSync(legacy)
+      ? legacy
+      : preferred;
+  const opencodeLabel = relative(cwd, opencodePath) || 'opencode.json';
 
   if (!existsSync(opencodePath)) {
     pushCheck(
       checks,
       'error',
-      'opencode.json',
+      opencodeLabel,
       'missing; run amore install so OpenCode can load the plugin, project AGENTS.md, disabled defaults, and bundled skills.',
     );
     return;
@@ -300,14 +328,14 @@ async function validateOpenCodeWiring(
     pushCheck(
       checks,
       'error',
-      'opencode.json',
+      opencodeLabel,
       `invalid JSON: ${formatError(error)}`,
     );
     return;
   }
 
   if (!isJsonObject(parsedJson)) {
-    pushCheck(checks, 'error', 'opencode.json', 'must be a JSON object.');
+    pushCheck(checks, 'error', opencodeLabel, 'must be a JSON object.');
     return;
   }
 
@@ -327,12 +355,12 @@ async function validateOpenCodeWiring(
   }
 
   if (configFailures.length > 0) {
-    pushCheck(checks, 'error', 'opencode.json', configFailures.join('; '));
+    pushCheck(checks, 'error', opencodeLabel, configFailures.join('; '));
   } else {
     pushCheck(
       checks,
       'ok',
-      'opencode.json',
+      opencodeLabel,
       'Plugin, AGENTS.md, and default_agent are wired.',
     );
   }
@@ -413,7 +441,7 @@ function checkPersonaModelProviders(cwd: string, checks: DoctorCheck[]): void {
     checks,
     'ok',
     'persona models',
-    `Personas resolve to provider${providers.length === 1 ? '' : 's'}: ${providers.join(', ')}. Make sure ${providers.length === 1 ? 'it is' : 'they are'} configured in OpenCode, or switch via amore install --models / personas.<name>.model.`,
+    `Personas resolve to provider${providers.length === 1 ? '' : 's'}: ${providers.join(', ')}. Make sure ${providers.length === 1 ? 'it is' : 'they are'} configured in OpenCode, or switch via amore install --models / .opencode/amore.json personas.<name>.model.`,
   );
 }
 
@@ -682,7 +710,7 @@ export async function runDoctor(
     );
   }
 
-  await validateAmoreConfig(labDir, checks);
+  await validateAmoreConfig(labDir, cwd, checks);
 
   await validateOpenCodeWiring(cwd, checks);
   checkPersonaModelProviders(cwd, checks);

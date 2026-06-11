@@ -48,9 +48,7 @@ verdict is loud signal, not a gate.
 - **REVIEWER_MODEL** — configured reviewer model, preferably from a
   different family than the executor. Resolution order:
   1. `--reviewer <model>` flag.
-  2. `<project>/lab/config.json` `audit.reviewer_model`.
-  3. Global config `audit.reviewer_model`.
-  4. Host/persona default if no reviewer override is configured.
+  2. Host/persona default if no reviewer override is configured.
   This skill does not name or choose concrete models.
 - **CONTEXT_POLICY = fresh** — every audit phase uses a new reviewer
   thread. No carry-over from previous runs or other phases.

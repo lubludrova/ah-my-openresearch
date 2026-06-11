@@ -1,15 +1,22 @@
 // Config loader for amore.
 //
-// Reads optional user config from two locations, in order:
-//   1. <projectRoot>/lab/config.json — per-project override
-//   2. ~/.config/opencode/ah-my-openresearch.json — global default
+// Reads optional user config from project and global locations, in order:
+//   1. <projectRoot>/.opencode/amore.json — current project config
+//   2. <projectRoot>/amore.json — explicit root project config
+//   3. <projectRoot>/lab/config.json — legacy project config
+//   4. ~/.config/opencode/ah-my-openresearch.json — global default
 //
 // Returns the first successful parse. On missing file, JSON parse error, or
 // schema mismatch, returns null (graceful: the plugin keeps working on
 // hard-coded defaults).
 
 import { readFileSync } from 'node:fs';
-import { getGlobalConfigPath, getProjectLabConfigPath } from '../utils/paths';
+import {
+  getGlobalConfigPath,
+  getProjectAmoreConfigPath,
+  getProjectLabConfigPath,
+  getRootProjectAmoreConfigPath,
+} from '../utils/paths';
 import { type AmoreConfig, AmoreConfigSchema } from './schema';
 
 function tryReadConfig(path: string): AmoreConfig | null {
@@ -41,9 +48,15 @@ export function loadAmoreConfig(
   projectRoot: string,
   globalPath: string = getGlobalConfigPath(),
 ): AmoreConfig | null {
-  const projectCfg = tryReadConfig(getProjectLabConfigPath(projectRoot));
-  if (projectCfg) {
-    return projectCfg;
+  for (const projectPath of [
+    getProjectAmoreConfigPath(projectRoot),
+    getRootProjectAmoreConfigPath(projectRoot),
+    getProjectLabConfigPath(projectRoot),
+  ]) {
+    const projectCfg = tryReadConfig(projectPath);
+    if (projectCfg) {
+      return projectCfg;
+    }
   }
   return tryReadConfig(globalPath);
 }

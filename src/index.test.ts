@@ -149,7 +149,7 @@ describe('amore plugin — config hook', () => {
     expect(agent['councillor-expert']).toBeUndefined();
   });
 
-  test('applies personas overrides from lab/config.json', async () => {
+  test('applies personas overrides from .opencode/amore.json', async () => {
     const projectRoot = await mkdtemp(join(tmpdir(), 'amore-plugin-probe-'));
     await mkdir(join(projectRoot, 'lab'), { recursive: true });
     await writeFile(
